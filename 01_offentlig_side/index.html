@@ -1,87 +1,29 @@
-<!DOCTYPE html>
-<html lang="no">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>HALDEN NÅ</title>
+from pathlib import Path
+import re
 
-<style>
-body{
-margin:0;
-font-family:Arial,sans-serif;
-background:#0d1117;
-color:white;
-}
+src = Path("/mnt/data/halden_na_hybrid_slider_v6_pc_mobile.html")
+html = src.read_text(encoding="utf-8")
 
-header{
-padding:20px;
-background:#151b24;
-border-bottom:1px solid rgba(255,255,255,0.1);
-position:sticky;
-top:0;
-}
+# Remove map panel section
+html = re.sub(
+    r'<section class="panel">\s*<div class="kicker">Kart</div>.*?<div class="mapBox"><div class="pin"></div></div>\s*</section>',
+    '',
+    html,
+    flags=re.S
+)
 
-h1{
-margin:0;
-font-size:32px;
-}
+# Make side column slightly narrower and cleaner
+html = html.replace("grid-template-columns:1.28fr .72fr;", "grid-template-columns:1.38fr .62fr;")
 
-.subtitle{
-color:rgba(255,255,255,0.6);
-margin-top:4px;
-}
+# Add kart button to bottom nav if not present already
+html = html.replace(
+    '<button>Saker</button>\n<button>Kart</button>',
+    '<button>Saker</button>\n<button>Kart</button>'
+)
 
-main{
-padding:20px;
-display:grid;
-gap:16px;
-}
+# Tighten side spacing
+html = html.replace("gap:14px", "gap:12px", 1)
 
-.card{
-background:#151b24;
-padding:18px;
-border-radius:20px;
-border:1px solid rgba(255,255,255,0.08);
-}
-
-.card small{
-color:#ff453a;
-font-weight:bold;
-}
-
-.card h2{
-margin:10px 0;
-}
-
-.card p{
-color:rgba(255,255,255,0.7);
-line-height:1.5;
-}
-</style>
-</head>
-
-<body>
-
-<header>
-<h1>HALDEN NÅ</h1>
-<div class="subtitle">Lokalt • Direkte • Åpent</div>
-</header>
-
-<main>
-
-<div class="card">
-<small>KORT FORKLART</small>
-<h2>Velkommen til HALDEN NÅ</h2>
-<p>Dette er første test av lokalavisa.</p>
-</div>
-
-<div class="card">
-<small>LIVE</small>
-<h2>Trafikk i sentrum</h2>
-<p>Ingen større hendelser akkurat nå.</p>
-</div>
-
-</main>
-
-</body>
-</html>
+out = Path("/mnt/data/halden_na_locked_v1.html")
+out.write_text(html, encoding="utf-8")
+print(out)
