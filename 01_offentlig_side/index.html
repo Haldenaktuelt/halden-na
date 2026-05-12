@@ -217,29 +217,29 @@ display:none;
 <main class="heroGrid">
 <div class="sliderWrap">
 <div class="slider">
-<a id="hero1" href="#sak1" class="hero" style="background-image:url('https://images.unsplash.com/photo-1519659528534-7fd733a832a0?auto=format&fit=crop&w=1600&q=80')">
+<a id="hero1" href="#sak1" data-sak-index="0" class="hero" style="background-image:url('https://images.unsplash.com/photo-1519659528534-7fd733a832a0?auto=format&fit=crop&w=1600&q=80')">
 <div class="heroContent">
-<div class="kicker">Hendelse · Oppdatert 18:42</div>
-<h1>SAR Queen bistår i redningsaksjon</h1>
-<div class="lead">Nødetatene jobber på stedet. Redningshelikopter fra Rygge bistår med kapasitet fra lufta.</div>
+<div class="kicker" id="hero1-kicker">Laster...</div>
+<h1 id="hero1-title">Laster sak...</h1>
+<div class="lead" id="hero1-lead">Laster ingress...</div>
 <div class="read">LES</div>
 </div>
 </a>
 
-<a id="hero2" href="#sak2" class="hero" style="background-image:url('https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=1600&q=80')">
+<a id="hero2" href="#sak1" data-sak-index="1" class="hero" style="background-image:url('https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=1600&q=80')">
 <div class="heroContent">
-<div class="kicker">Kommune · Kort forklart</div>
-<h1>Ny reguleringssak kan endre sentrum</h1>
-<div class="lead">Store endringer foreslås rundt trafikk og nye boliger. Her er det viktigste forklart enkelt.</div>
+<div class="kicker" id="hero2-kicker">Laster...</div>
+<h1 id="hero2-title">Laster sak...</h1>
+<div class="lead" id="hero2-lead">Laster ingress...</div>
 <div class="read">LES</div>
 </div>
 </a>
 
-<a id="hero3" href="#sak3" class="hero" style="background-image:url('https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1600&q=80')">
+<a id="hero3" href="#sak1" data-sak-index="2" class="hero" style="background-image:url('https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1600&q=80')">
 <div class="heroContent">
-<div class="kicker">Arrangement · Helg</div>
-<h1>Dette skjer i Halden denne helgen</h1>
-<div class="lead">Konserter, marked og aktiviteter samlet på ett sted.</div>
+<div class="kicker" id="hero3-kicker">Laster...</div>
+<h1 id="hero3-title">Laster sak...</h1>
+<div class="lead" id="hero3-lead">Laster ingress...</div>
 <div class="read">LES</div>
 </div>
 </a>
@@ -302,8 +302,8 @@ display:none;
 <div class="sheet">
 <a class="close" href="#">Lukk</a>
 <div class="kicker">Kort forklart</div>
-<h1>SAR Queen bistår i redningsaksjon</h1>
-<p>Nødetatene jobber på stedet. Redningshelikopter fra Rygge bistår med luftkapasitet. Det er foreløpig få bekreftede detaljer, og saken holdes derfor kort til mer informasjon foreligger.</p>
+<h1 id="modal-title">Laster sak...</h1>
+<p id="modal-text">Laster innhold...</p>
 <div class="partner">
 <div class="partnerLogo">MOTZ<br>&<br>KRINGLA</div>
 <div class="partnerText"><b>I samarbeid med Motz & Kringla</b>Lokalt håndverksbakeri og møteplass i Halden sentrum.</div>
@@ -314,7 +314,7 @@ display:none;
 <div id="sak2" class="modal">
 <div class="sheet">
 <a class="close" href="#">Lukk</a>
-<div class="kicker">Kort forklart</div>
+<div class="kicker" id="modal-kicker">Laster...</div>
 <h1>Ny reguleringssak kan endre sentrum</h1>
 <p>Kommunen vurderer nye løsninger for trafikk og boligbygging i sentrum. Vi har gått gjennom dokumentene og forklarer det viktigste kort og enkelt.</p>
 </div>
@@ -371,6 +371,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 });
 </script>
-
+<script src="data/saker.js"></script>
+<script src="js/app.js"></script>
 </body>
 </html>
