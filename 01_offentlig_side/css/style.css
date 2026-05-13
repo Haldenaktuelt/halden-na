@@ -1,0 +1,20 @@
+.modal{
+display:none;
+position:fixed;
+inset:0;
+background:rgba(0,0,0,.72);
+z-index:20;
+align-items:end;
+.sections{
+  gap:22px !important;
+  margin-top:28px !important;
+  align-items:stretch;
+}
+
+.sections .card{
+  margin:0;
+  cursor:pointer;
+}
+body.modal-open{
+  overflow:hidden;
+}
