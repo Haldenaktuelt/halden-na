@@ -7,8 +7,11 @@ document.addEventListener("DOMContentLoaded", () => {
     return;
   }
 
+  console.log("HALDEN NÅ saker lastet:", saker);
+
   function fyllHero(heroNummer, sakIndex) {
     const sak = saker[sakIndex];
+
     if (!sak) return;
 
     document.getElementById(`hero${heroNummer}-kicker`).textContent = sak.kategori;
@@ -23,35 +26,28 @@ document.addEventListener("DOMContentLoaded", () => {
   fyllHero(2, 1);
   fyllHero(3, 2);
 
-function åpneSak(sak) {
-  if (!sak) return;
+  function åpneSak(sak) {
+    if (!sak) return;
 
-  document.getElementById("modal-kicker").textContent = sak.kategori;
-  document.getElementById("modal-title").textContent = sak.tittel;
-  document.getElementById("modal-text").textContent = sak.tekst;
+    document.getElementById("modal-kicker").textContent = sak.kategori;
+    document.getElementById("modal-title").textContent = sak.tittel;
+    document.getElementById("modal-text").textContent = sak.tekst;
 
-  document.getElementById("modal").style.display = "flex";
-  document.body.classList.add("modal-open");
-}
+    window.location.hash = "sak1";
+  }
 
-  document.querySelectorAll("[data-sak-index]").forEach(hero => {
+  const heroLinks = document.querySelectorAll("[data-sak-index]");
+
+  heroLinks.forEach(hero => {
     hero.addEventListener("click", (e) => {
       e.preventDefault();
+
       const sakIndex = Number(hero.dataset.sakIndex);
-      åpneSak(saker[sakIndex]);
+      const sak = saker[sakIndex];
+
+      åpneSak(sak);
     });
   });
-
-const closeModal = document.getElementById("close-modal");
-
-if (closeModal) {
-  closeModal.addEventListener("click", (e) => {
-    e.preventDefault();
-
-    document.getElementById("modal").style.display = "none";
-    document.body.classList.remove("modal-open");
-  });
-}
 
   const mestLestListe = document.getElementById("mest-lest-liste");
 
@@ -68,28 +64,11 @@ if (closeModal) {
         <p>${sak.ingress}</p>
       `;
 
-      item.addEventListener("click", () => åpneSak(sak));
+      item.addEventListener("click", () => {
+        åpneSak(sak);
+      });
+
       mestLestListe.appendChild(item);
-    });
-  }
-
-  const seksjonskort = document.getElementById("seksjonskort");
-
-  if (seksjonskort) {
-    seksjonskort.innerHTML = "";
-
-    saker.slice(0, 3).forEach((sak, index) => {
-      const kort = document.createElement("article");
-      kort.className = index === 1 ? "card dark" : "card";
-
-      kort.innerHTML = `
-        <div class="kicker">${sak.kategori}</div>
-        <h3>${sak.tittel}</h3>
-        <p>${sak.ingress}</p>
-      `;
-
-      kort.addEventListener("click", () => åpneSak(sak));
-      seksjonskort.appendChild(kort);
     });
   }
 
