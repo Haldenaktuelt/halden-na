@@ -8,15 +8,15 @@ window.HALDEN_NA_SAKER = [
 
 ];window.HALDEN_NA_SAKER = [
   {
-    "id": "sak-1778706170718",
-    "tid": "23:02",
-    "kategori": "Kommune",
-    "sourceType": "Kommune",
-    "sourceUrl": "https://www.halden.kommune.no/",
-    "tittel": "Kommunal sak: Torget stengt for parkering Dagen etter feiringen av nasjonaldagen vil par",
-    "ingress": "Torget stengt for parkering Dagen etter feiringen av nasjonaldagen vil parkeringsplassene på Halden torg bli malt opp på ny. Torget vil derfor være stengt for parkering 1...",
-    "tekst": "Kort forklart:\n\nTorget stengt for parkering\nDagen etter feiringen av nasjonaldagen vil parkeringsplassene på Halden torg bli malt opp på ny. Torget vil derfor være stengt for parkering 16. - 18. mai.\n\nKontroll før publisering:\n• Sjekk fakta\n• Sjekk dato/sted\n• Sjekk kilde\n• Fjern usikker informasjon\n• Godkjenn tittel og ingress",
-    "bilde": "https://www.halden.kommune.no/handlers/bv.ashx/i6d84485d-3564-4e48-a674-b70ad5dea0f5/f6b25logohalden.png",
+    "id": "sak-1778710625613",
+    "tid": "00:17",
+    "kategori": "Kort forklart",
+    "sourceType": "Halden kommune",
+    "sourceUrl": "https://www.sarpsborg.com/",
+    "tittel": "Kort forklart: Vårt kjøkken lager næringsrik, velsmakende og variert middagsmat som kjør",
+    "ingress": "Vårt kjøkken lager næringsrik, velsmakende og variert middagsmat som kjøres ut og leveres hjem til innbyggere som ønsker å kjøpe mat fra Halden kommune. Tilbudet er åpent...",
+    "tekst": "Kort forklart:\n\nVårt kjøkken lager næringsrik, velsmakende og variert middagsmat som kjøres ut og leveres hjem til innbyggere som ønsker å kjøpe mat fra Halden kommune. Tilbudet er åpent for alle innbyggere i Halden. Du trenger ikke å søke for å få matlevering hjem til deg, det er bare å ringe og bestille. Maten kommer i praktiske forpakninger og du bestiller ut i fra en ukemeny.\n\nKontroll før publisering:\n• Sjekk fakta\n• Sjekk dato/sted\n• Sjekk kilde\n• Fjern usikker informasjon\n• Godkjenn tittel og ingress",
+    "bilde": "https://upload.wikimedia.org/wikipedia/commons/d/df/Halden_Fra_Festningen.jpg",
     "video": "",
     "mediaPlacement": "bottom"
   },
