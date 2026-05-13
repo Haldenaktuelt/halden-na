@@ -1,35 +1,8 @@
 window.HALDEN_NA_SAKER = [
-  {
-    id: "sak1",
-    kategori: "Hendelse",
-    status: "publisert",
-    tid: "Oppdatert 18:42",
-    tittel: "TEST — Denne saken kommer fra datafila",
-    ingress: "Nødetatene jobber på stedet. Redningshelikopter fra Rygge bistår med kapasitet fra lufta.",
-    tekst: "Nødetatene jobber på stedet. Redningshelikopter fra Rygge bistår med luftkapasitet. Det er foreløpig få bekreftede detaljer, og saken holdes derfor kort til mer informasjon foreligger.",
-    bilde: "https://images.unsplash.com/photo-1519659528534-7fd733a832a0?auto=format&fit=crop&w=1600&q=80",
-    partner: "Motz & Kringla"
-  },
-  {
-    id: "sak2",
-    kategori: "Kommune",
-    status: "publisert",
-    tid: "Kort forklart",
-    tittel: "Test - Ny reguleringssak kan endre sentrum",
-    ingress: "Store endringer foreslås rundt trafikk og nye boliger. Her er det viktigste forklart enkelt.",
-    tekst: "Kommunen vurderer nye løsninger for trafikk og boligbygging i sentrum. Vi har gått gjennom dokumentene og forklarer det viktigste kort og enkelt.",
-    bilde: "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=1600&q=80",
-    partner: null
-  },
-  {
-    id: "sak3",
-    kategori: "Arrangement",
-    status: "publisert",
-    tid: "Helg",
-    tittel: "Test - Dette skjer i Halden denne helgen",
-    ingress: "Konserter, marked og aktiviteter samlet på ett sted.",
-    tekst: "Konserter, markeder og familieaktiviteter samlet i en enkel oversikt uten støy og reklamekaos.",
-    bilde: "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1600&q=80",
-    partner: null
-  }
+  {id:"sak-001",tid:"18:20",kategori:"Kort forklart",tittel:"Nytt lokalt prosjekt skal gjøre Halden mer synlig",ingress:"Halden Nå samler korte forklaringer, lokale hendelser og det folk faktisk lurer på.",tekst:"Halden Nå er laget for å gjøre lokale saker enklere å forstå.\n\nMålet er å samle offentlige dokumenter, arrangementer, politilogg, trafikk og korte nyheter på ett sted.\n\nAlt skal være kort, tydelig og lett å lese. AI kan hjelpe med å sortere og skrive forslag, men publisering skal godkjennes av redaktør.",bilde:"https://images.unsplash.com/photo-1519659528534-7fd733a832a0?auto=format&fit=crop&w=1600&q=80",video:"",mediaPlacement:"top"},
+  {id:"sak-002",tid:"17:45",kategori:"Kommune",tittel:"Kommunale dokumenter forklart på vanlig språk",ingress:"Vi tester en løsning der lange dokumenter blir til korte og forståelige sammendrag.",tekst:"Mange kommunale saker er vanskelige å lese fordi dokumentene er lange og formelle.\n\nHalden Nå skal gjøre slike saker mer tilgjengelige. Først henter redaksjonen ut dokumenter. Deretter lager AI et kort forslag. Til slutt godkjenner et menneske saken før publisering.",bilde:"https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=1600&q=80",video:"",mediaPlacement:"bottom"},
+  {id:"sak-003",tid:"16:10",kategori:"Arrangement",tittel:"Dette skjer i Halden denne uka",ingress:"Arrangementer, markeder og aktiviteter samlet i en enkel oversikt.",tekst:"Her skal Halden Nå samle arrangementer fra byen og nærområdet.\n\nMålet er å gi en rask oversikt over hva som skjer, hvor det skjer og når det skjer.",bilde:"https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1600&q=80",video:"",mediaPlacement:"top"},
+  {id:"sak-004",tid:"15:55",kategori:"Politilogg",tittel:"Kort fra politiloggen",ingress:"Rask og ryddig oversikt over relevante hendelser i Halden og Østfold.",tekst:"Denne modulen er tenkt som en kort forklaring av relevante hendelser fra politiloggen.\n\nDet viktige er å unngå spekulasjoner og holde seg til bekreftet informasjon.",bilde:"https://images.unsplash.com/photo-1495020689067-958852a7765e?auto=format&fit=crop&w=1600&q=80",video:"",mediaPlacement:"top"},
+  {id:"sak-005",tid:"14:30",kategori:"Vei / Trafikk",tittel:"Trafikk og vei i nærområdet",ingress:"Korte meldinger om stengte veier, kø, arbeid og hendelser.",tekst:"Her kan Halden Nå samle trafikkmeldinger og gjøre dem enkle å forstå.\n\nFor eksempel: hva har skjedd, hvor er det, hvor lenge varer det og hva bør folk gjøre?",bilde:"https://images.unsplash.com/photo-1500534314209-a25ddb2bd429?auto=format&fit=crop&w=1600&q=80",video:"",mediaPlacement:"bottom"},
+  {id:"sak-006",tid:"13:15",kategori:"Norge & Verden",tittel:"Norge og verden kort forklart",ingress:"Utvalgte saker utenfra som kan ha betydning lokalt.",tekst:"Denne kategorien er for saker fra Norge og verden.\n\nMålet er å forklare store eller relevante saker kort, uten å drukne leseren i detaljer.",bilde:"https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1600&q=80",video:"",mediaPlacement:"top"}
 ];
