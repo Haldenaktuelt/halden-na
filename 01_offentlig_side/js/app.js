@@ -23,12 +23,8 @@ document.addEventListener("DOMContentLoaded", () => {
   fyllHero(2, 1);
   fyllHero(3, 2);
 
-let scrollPosisjon = 0;
-
 function åpneSak(sak) {
   if (!sak) return;
-
-  scrollPosisjon = window.scrollY;
 
   document.getElementById("modal-kicker").textContent = sak.kategori;
   document.getElementById("modal-title").textContent = sak.tittel;
@@ -54,19 +50,6 @@ if (closeModal) {
 
     document.getElementById("modal").style.display = "none";
     document.body.classList.remove("modal-open");
-  });
-const closeModal = document.getElementById("close-modal");
-
-if (closeModal) {
-  closeModal.addEventListener("click", (e) => {
-    e.preventDefault();
-
-    document.getElementById("modal").style.display = "none";
-    document.body.classList.remove("modal-open");
-
-    setTimeout(() => {
-      window.scrollTo(0, scrollPosisjon);
-    }, 0);
   });
 }
 

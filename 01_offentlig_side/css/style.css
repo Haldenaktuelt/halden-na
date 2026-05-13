@@ -17,4 +17,6 @@ align-items:end;
 }
 body.modal-open{
   overflow:hidden;
+}body.modal-open{
+  overflow:hidden;
 }
