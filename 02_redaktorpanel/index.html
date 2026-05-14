@@ -1,9 +1,329 @@
-<!doctype html><html lang="no"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>HALDEN NÅ — Redaktørpanel</title><link rel="stylesheet" href="css/admin.css"></head><body><div class="app"><header class="top"><div><div class="brand">HALDEN <span>NÅ</span></div><div class="tagline">Redaktørpanel — AI foreslår, menneske godkjenner</div></div><div class="status" id="status">Klar</div></header><nav class="tabs"><button class="tab active" data-tab="ai">AI-kladd</button><button class="tab" data-tab="godkjenning">Til godkjenning</button><button class="tab" data-tab="publisert">Publisert</button><button class="tab" data-tab="kilder">Kilder / overvåking</button><button class="tab" data-tab="partnere">Partnere</button><button class="tab" data-tab="eksport">Eksport</button></nav>
-<section id="ai" class="view active"><div class="grid"><div class="card"><h2>Lag sak fra råstoff</h2><p class="small">Lim inn tekst, URL, dokumentnotat, politilogg, Øst 110, arrangement eller egne tips. Lokal kladd nå — ekte AI kobles på i neste steg.</p><label>Kilde/type</label><select id="sourceType"><option>Kommune</option><option>Politilogg</option><option>Øst 110</option><option>Arrangement</option><option>Vei / Trafikk</option><option>Norge & Verden</option><option>Kort forklart</option><option>Egendefinert</option></select><label>Egendefinert kilde/type</label><input id="customSourceType" placeholder="F.eks. Statens vegvesen, Visit Halden, Halden kommune"><label>Ekstern kilde / URL</label><input id="sourceUrl" placeholder="https://..."><label>Råtekst</label><textarea id="rawInput" placeholder="Lim inn råstoff her..."></textarea><label>Bilde-URL</label><input id="rawImage" placeholder="https://..."><label>Video-URL</label><input id="rawVideo" placeholder="https://..."><label>Media-plassering</label><select id="mediaPlacement"><option value="top">Bilde/video over tekst</option><option value="bottom">Bilde/video under tekst</option></select><div class="row"><button class="primary" id="makeDraft">Lag kladd</button><button class="secondary" id="clearRaw">Tøm</button></div></div><div class="card"><h2>Forhåndsvisning</h2><div id="draftPreview" class="previewEmpty">Ingen kladd ennå.</div></div></div></section>
-<section id="godkjenning" class="view"><div class="card"><h2>Liste til godkjenning</h2><p class="small">Trykk på en kladd for forhåndsvisning, redigering eller godkjenning.</p><div id="approvalList" class="stack"></div></div></section>
-<section id="publisert" class="view"><div class="card"><h2>Publiserte saker</h2><p class="small">Publiserte saker kan trekkes tilbake.</p><div id="publishedList" class="stack"></div></div></section>
-<section id="kilder" class="view"><div class="grid"><div class="card"><h2>Kilder AI skal kunne bruke senere</h2><p class="small">Legg inn dokumenter, URL-er og faste kilder som AI-agenten senere skal overvåke.</p><label>Kildenavn</label><input id="sourceName" placeholder="F.eks. Halden kommune"><label>Type</label><select id="sourceKind"><option>URL</option><option>Dokument</option><option>X / Twitter</option><option>RSS</option><option>Manuell kilde</option></select><label>URL / dokumentlenke</label><input id="sourceLink" placeholder="https://..."><label>Hva skal AI se etter?</label><textarea id="sourceInstruction" placeholder="F.eks. varsle om saker som gjelder Halden, vei, byggesaker, arrangementer..."></textarea><label>Overvåkingsfrekvens</label><select id="sourceFrequency"><option>Manuell</option><option>Daglig</option><option>Hver 6. time</option><option>Hver time</option></select><div class="row"><button class="primary" id="addSource">Legg til kilde</button></div></div><div class="card"><h2>Kildeliste</h2><div id="sourceList" class="stack"></div></div></div></section>
-<section id="partnere" class="view"><div class="grid"><div class="card"><h2>Ny partner / reklame</h2><label>Navn</label><input id="partnerName"><label>Logo-tekst</label><input id="partnerLogoText"><label>Logo-URL</label><input id="partnerLogoUrl"><label>Kort reklametekst</label><textarea id="partnerText"></textarea><label>URL-knapp</label><input id="partnerUrl"><label>Nivå</label><select id="partnerLevel"><option value="hovedpartner">Hovedpartner — vises oftest</option><option value="partner">Partner — vises middels</option><option value="stottespiller">Støttespiller — vises lavest</option></select><label>Størrelse</label><select id="partnerSize"><option value="small">Liten reklame</option><option value="large">Stor reklame med knapp</option><option value="both">Begge</option></select><div class="dateGrid"><div><label>Startdato</label><input id="partnerStart" type="date"></div><div><label>Sluttdato</label><input id="partnerEnd" type="date"></div></div><div class="row"><button class="primary" id="addPartner">Legg til partner</button></div></div><div class="card"><h2>Partnerliste</h2><p class="small">Dobbeltklikk på en partner for å slette.</p><div id="partnerList" class="stack"></div></div></div></section>
-<section id="eksport" class="view"><div class="grid"><div class="card"><h2>Eksporter saker</h2><p class="small">Kopier til <b>01_offentlig_side/data/saker.js</b>.</p><div class="row"><button class="primary" id="copyStories">Kopier saker.js</button><button class="secondary" id="downloadStories">Last ned saker.js</button></div><pre id="storiesOutput"></pre></div><div class="card"><h2>Eksporter partnere</h2><p class="small">Kopier til <b>01_offentlig_side/data/partners.js</b>.</p><div class="row"><button class="primary" id="copyPartners">Kopier partners.js</button><button class="secondary" id="downloadPartners">Last ned partners.js</button></div><pre id="partnersOutput"></pre></div><div class="card"><h2>Eksporter kilder</h2><p class="small">Klargjort for AI-agent/Firebase senere.</p><div class="row"><button class="primary" id="copySources">Kopier sources.json</button><button class="secondary" id="downloadSources">Last ned sources.json</button></div><pre id="sourcesOutput"></pre></div></div></section></div>
-<div id="editorModal" class="modal"><div class="sheet"><button class="close" id="closeEditor">Lukk</button><div class="kicker">Kladd</div><h1>Forhåndsvis / rediger</h1><label>Kategori</label><select id="editKategori"><option>Kort forklart</option><option>Kommune</option><option>Arrangement</option><option>Politilogg</option><option>Vei / Trafikk</option><option>Norge & Verden</option><option>Tips</option></select><label>Kilde/type</label><input id="editSourceType"><label>Ekstern kilde / URL</label><input id="editSourceUrl"><label>Tid</label><input id="editTid"><label>Tittel</label><input id="editTittel"><label>Ingress</label><textarea id="editIngress"></textarea><label>Tekst</label><textarea id="editTekst"></textarea><label>Bilde-URL</label><input id="editBilde"><label>Video-URL</label><input id="editVideo"><label>Media-plassering</label><select id="editMediaPlacement"><option value="top">Bilde/video over tekst</option><option value="bottom">Bilde/video under tekst</option></select><div class="row"><button class="primary" id="saveDraftChanges">Lagre endringer</button><button class="primary" id="approveDraft">Godkjenn og publiser</button><button class="danger" id="deleteDraft">Slett kladd</button></div><div class="hnPreview" id="hnPreview"></div></div></div>
-<script src="../01_offentlig_side/data/saker.js"></script><script src="../01_offentlig_side/data/partners.js"></script><script type="module" src="js/admin.js"></script></body></html>
+<!doctype html>
+<html lang="no">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>HALDEN NÅ — Redaktørpanel</title>
+  <link rel="stylesheet" href="css/admin.css">
+</head>
+
+<body>
+  <div class="app">
+
+    <header class="top">
+      <div>
+        <div class="brand">HALDEN <span>NÅ</span></div>
+        <div class="tagline">Redaktørpanel — AI foreslår, menneske godkjenner</div>
+      </div>
+      <div class="status" id="status">Klar</div>
+    </header>
+
+    <nav class="tabs">
+      <button class="tab active" data-tab="ai">Ny sak</button>
+      <button class="tab" data-tab="godkjenning">Til godkjenning</button>
+      <button class="tab" data-tab="publisert">Publisert</button>
+      <button class="tab" data-tab="kilder">Kilder</button>
+      <button class="tab" data-tab="partnere">Partnere</button>
+      <button class="tab" data-tab="eksport">Eksport</button>
+    </nav>
+
+    <section id="ai" class="view active">
+      <div class="grid">
+
+        <div class="card">
+          <h2>Opprett ny sak</h2>
+          <p class="small">
+            Lim inn råstoff. Systemet lager et forslag som sendes til godkjenning.
+            Ingenting publiseres automatisk.
+          </p>
+
+          <label>Kategori</label>
+          <select id="sourceType">
+            <option>Lokalt</option>
+            <option>Politilogg</option>
+            <option>Kommune</option>
+            <option>Arrangement</option>
+            <option>Trafikk</option>
+            <option>Sport</option>
+            <option>Norge & Verden</option>
+            <option>Kultur</option>
+            <option>Meninger</option>
+            <option>Historie</option>
+            <option>Kort forklart</option>
+            <option>Egendefinert</option>
+          </select>
+
+          <label>Egendefinert type / kilde</label>
+          <input id="customSourceType" placeholder="F.eks. Halden kommune, Øst politidistrikt, Statens vegvesen">
+
+          <label>Kilde / URL</label>
+          <input id="sourceUrl" placeholder="https://...">
+
+          <label>Råtekst</label>
+          <textarea id="rawInput" placeholder="Lim inn råstoff her..."></textarea>
+
+          <label>Bilde-URL</label>
+          <input id="rawImage" placeholder="https://...">
+
+          <label>Video-URL</label>
+          <input id="rawVideo" placeholder="https://...">
+
+          <label>Media-plassering</label>
+          <select id="mediaPlacement">
+            <option value="top">Bilde/video over tekst</option>
+            <option value="bottom">Bilde/video under tekst</option>
+          </select>
+
+          <div class="row">
+            <button class="primary" id="makeDraft">Lag forslag til godkjenning</button>
+            <button class="secondary" id="clearRaw">Tøm</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>Forhåndsvisning</h2>
+          <p class="small">
+            Dette er kun et forslag. Saken må åpnes, kontrolleres og godkjennes før publisering.
+          </p>
+          <div id="draftPreview" class="previewEmpty">Ingen kladd ennå.</div>
+        </div>
+
+      </div>
+    </section>
+
+    <section id="godkjenning" class="view">
+      <div class="card">
+        <h2>Til godkjenning</h2>
+        <p class="small">
+          Trykk på en sak for å redigere, kontrollere og publisere.
+        </p>
+        <div id="approvalList" class="stack"></div>
+      </div>
+    </section>
+
+    <section id="publisert" class="view">
+      <div class="card">
+        <h2>Publiserte saker</h2>
+        <p class="small">
+          Her ligger saker som er publisert. En sak kan trekkes tilbake uten at det lages duplikat.
+        </p>
+        <div id="publishedList" class="stack"></div>
+      </div>
+    </section>
+
+    <section id="kilder" class="view">
+      <div class="grid">
+
+        <div class="card">
+          <h2>Kilder</h2>
+          <p class="small">
+            Legg inn faste kilder som senere kan brukes av AI-agenten.
+          </p>
+
+          <label>Kildenavn</label>
+          <input id="sourceName" placeholder="F.eks. Halden kommune">
+
+          <label>Type</label>
+          <select id="sourceKind">
+            <option>URL</option>
+            <option>Dokument</option>
+            <option>RSS</option>
+            <option>Manuell kilde</option>
+            <option>X / Twitter</option>
+          </select>
+
+          <label>URL / dokumentlenke</label>
+          <input id="sourceLink" placeholder="https://...">
+
+          <label>Hva skal AI se etter?</label>
+          <textarea id="sourceInstruction" placeholder="F.eks. saker om Halden, trafikk, byggesaker, arrangementer..."></textarea>
+
+          <label>Overvåkingsfrekvens</label>
+          <select id="sourceFrequency">
+            <option>Manuell</option>
+            <option>Daglig</option>
+            <option>Hver 6. time</option>
+            <option>Hver time</option>
+          </select>
+
+          <div class="row">
+            <button class="primary" id="addSource">Legg til kilde</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>Kildeliste</h2>
+          <div id="sourceList" class="stack"></div>
+        </div>
+
+      </div>
+    </section>
+
+    <section id="partnere" class="view">
+      <div class="grid">
+
+        <div class="card">
+          <h2>Ny partner / reklame</h2>
+
+          <label>Navn</label>
+          <input id="partnerName">
+
+          <label>Logo-tekst</label>
+          <input id="partnerLogoText">
+
+          <label>Logo-URL</label>
+          <input id="partnerLogoUrl">
+
+          <label>Kort reklametekst</label>
+          <textarea id="partnerText"></textarea>
+
+          <label>URL-knapp</label>
+          <input id="partnerUrl">
+
+          <label>Nivå</label>
+          <select id="partnerLevel">
+            <option value="hovedpartner">Hovedpartner — vises oftest</option>
+            <option value="partner">Partner — vises middels</option>
+            <option value="stottespiller">Støttespiller — vises lavest</option>
+          </select>
+
+          <label>Størrelse</label>
+          <select id="partnerSize">
+            <option value="small">Liten reklame</option>
+            <option value="large">Stor reklame med knapp</option>
+            <option value="both">Begge</option>
+          </select>
+
+          <div class="dateGrid">
+            <div>
+              <label>Startdato</label>
+              <input id="partnerStart" type="date">
+            </div>
+            <div>
+              <label>Sluttdato</label>
+              <input id="partnerEnd" type="date">
+            </div>
+          </div>
+
+          <div class="row">
+            <button class="primary" id="addPartner">Legg til partner</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>Partnerliste</h2>
+          <p class="small">Dobbeltklikk på en partner for å slette.</p>
+          <div id="partnerList" class="stack"></div>
+        </div>
+
+      </div>
+    </section>
+
+    <section id="eksport" class="view">
+      <div class="grid">
+
+        <div class="card">
+          <h2>Eksporter saker</h2>
+          <p class="small">Brukes som lokal backup til <b>01_offentlig_side/data/saker.js</b>.</p>
+          <div class="row">
+            <button class="primary" id="copyStories">Kopier saker.js</button>
+            <button class="secondary" id="downloadStories">Last ned saker.js</button>
+          </div>
+          <pre id="storiesOutput"></pre>
+        </div>
+
+        <div class="card">
+          <h2>Eksporter partnere</h2>
+          <p class="small">Kopier til <b>01_offentlig_side/data/partners.js</b>.</p>
+          <div class="row">
+            <button class="primary" id="copyPartners">Kopier partners.js</button>
+            <button class="secondary" id="downloadPartners">Last ned partners.js</button>
+          </div>
+          <pre id="partnersOutput"></pre>
+        </div>
+
+        <div class="card">
+          <h2>Eksporter kilder</h2>
+          <p class="small">Klargjort for AI-agent/Firebase senere.</p>
+          <div class="row">
+            <button class="primary" id="copySources">Kopier sources.json</button>
+            <button class="secondary" id="downloadSources">Last ned sources.json</button>
+          </div>
+          <pre id="sourcesOutput"></pre>
+        </div>
+
+      </div>
+    </section>
+
+  </div>
+
+  <div id="editorModal" class="modal">
+    <div class="sheet">
+      <button class="close" id="closeEditor">Lukk</button>
+
+      <div class="kicker">Til godkjenning</div>
+      <h1>Rediger sak</h1>
+
+      <label>Kategori</label>
+      <select id="editKategori">
+        <option>Forside</option>
+        <option>Lokalt</option>
+        <option>Politilogg</option>
+        <option>Kommune</option>
+        <option>Arrangement</option>
+        <option>Trafikk</option>
+        <option>Sport</option>
+        <option>Norge & Verden</option>
+        <option>Kultur</option>
+        <option>Meninger</option>
+        <option>Historie</option>
+        <option>Mest lest</option>
+        <option>Kort forklart</option>
+        <option>Tips</option>
+      </select>
+
+      <label>Kilde/type</label>
+      <input id="editSourceType">
+
+      <label>Kilde / URL</label>
+      <input id="editSourceUrl">
+
+      <label>Tid</label>
+      <input id="editTid">
+
+      <label>Tittel</label>
+      <input id="editTittel">
+
+      <label>Ingress</label>
+      <textarea id="editIngress"></textarea>
+
+      <label>Brødtekst</label>
+      <textarea id="editTekst"></textarea>
+
+      <label>Bilde-URL</label>
+      <input id="editBilde">
+
+      <label>Video-URL</label>
+      <input id="editVideo">
+
+      <label>Media-plassering</label>
+      <select id="editMediaPlacement">
+        <option value="top">Bilde/video over tekst</option>
+        <option value="bottom">Bilde/video under tekst</option>
+      </select>
+
+      <div class="row">
+        <button class="primary" id="saveDraftChanges">Lagre endringer</button>
+        <button class="primary" id="approveDraft">Godkjenn og publiser</button>
+        <button class="danger" id="deleteDraft">Slett kladd</button>
+      </div>
+
+      <div class="hnPreview" id="hnPreview"></div>
+    </div>
+  </div>
+
+  <script src="../01_offentlig_side/data/saker.js"></script>
+  <script src="../01_offentlig_side/data/partners.js"></script>
+  <script type="module" src="js/admin.js"></script>
+</body>
+</html>
