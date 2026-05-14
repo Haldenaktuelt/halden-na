@@ -1,8 +1,10 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.8.0/firebase-app.js";
+
 import {
   getFirestore,
   collection,
   addDoc,
+  setDoc,
   deleteDoc,
   doc,
   updateDoc,
@@ -29,6 +31,7 @@ export const auth = getAuth(app);
 export {
   collection,
   addDoc,
+  setDoc,
   deleteDoc,
   doc,
   updateDoc,

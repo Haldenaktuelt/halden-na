@@ -1,11 +1,13 @@
 import {
   db,
   collection,
-  addDoc,
+  doc,
+  setDoc,
   serverTimestamp,
   COLLECTIONS
 } from "../../00_firebase/firebase-db.js";
-  document.addEventListener("DOMContentLoaded", () => {
+
+document.addEventListener("DOMContentLoaded", () => {
   const defaultStories = window.HALDEN_NA_SAKER || [];
   const defaultPartners = window.HALDEN_NA_PARTNERE || [];
 
@@ -16,8 +18,7 @@ import {
   let activeDraftIndex = null;
 
   const $ = (id) => document.getElementById(id);
-
-  function exists(id){ return !!$(id); }
+  const exists = (id) => !!$(id);
 
   function save(){
     localStorage.setItem("hn_published", JSON.stringify(published));
@@ -27,18 +28,29 @@ import {
   }
 
   function nowTime(){
-    return new Date().toLocaleTimeString("no-NO", {hour:"2-digit", minute:"2-digit"});
+    return new Date().toLocaleTimeString("no-NO", { hour:"2-digit", minute:"2-digit" });
   }
 
   function makeId(prefix){
     return prefix + "-" + Date.now();
   }
 
-  function escapeText(s){
-    return String(s || "").replace(/[&<>"']/g, (m) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
+  function normalizeStoryId(story){
+    if(story.id) return story.id;
+    return makeId("sak");
   }
 
-  function value(id, fallback=""){
+  function escapeText(s){
+    return String(s || "").replace(/[&<>"']/g, (m) => ({
+      "&":"&amp;",
+      "<":"&lt;",
+      ">":"&gt;",
+      '"':"&quot;",
+      "'":"&#039;"
+    }[m]));
+  }
+
+  function value(id, fallback = ""){
     return exists(id) ? $(id).value : fallback;
   }
 
@@ -69,7 +81,7 @@ import {
     if(kategori === "Norge & Verden") prefix = "Norge & Verden";
 
     return {
-      id: makeId("draft"),
+      id: makeId("sak"),
       tid: nowTime(),
       kategori,
       sourceType: sourceType || type,
@@ -92,7 +104,11 @@ import {
       return;
     }
 
-    const media = draft.video ? `<video src="${escapeText(draft.video)}" controls></video>` : draft.bilde ? `<img src="${escapeText(draft.bilde)}" alt="">` : "";
+    const media = draft.video
+      ? `<video src="${escapeText(draft.video)}" controls></video>`
+      : draft.bilde
+        ? `<img src="${escapeText(draft.bilde)}" alt="">`
+        : "";
 
     $(targetId).innerHTML = `
       <div class="hnPreview">
@@ -111,13 +127,40 @@ import {
     document.querySelectorAll(".view").forEach(v => v.classList.toggle("active", v.id === tabId));
   }
 
+  async function saveStoryToFirebase(story){
+    const id = normalizeStoryId(story);
+    story.id = id;
+
+    await setDoc(doc(db, COLLECTIONS.saker, id), {
+      ...story,
+      status: story.status || "publisert",
+      oppdatertAt: serverTimestamp()
+    }, { merge: true });
+  }
+
+  async function saveDraftToFirebase(story){
+    const id = normalizeStoryId(story);
+    story.id = id;
+
+    await setDoc(doc(db, COLLECTIONS.kladder, id), {
+      ...story,
+      status: story.status || "til_godkjenning",
+      oppdatertAt: serverTimestamp()
+    }, { merge: true });
+  }
+
   function renderLists(){
     if(exists("approvalList")){
       $("approvalList").innerHTML = drafts.length ? "" : `<div class="previewEmpty">Ingen saker til godkjenning.</div>`;
+
       drafts.forEach((d, i) => {
         const item = document.createElement("div");
         item.className = "listItem";
-        item.innerHTML = `<small>${escapeText(d.tid)} · ${escapeText(d.kategori)} · ${escapeText(d.sourceType || "")}</small><h3>${escapeText(d.tittel)}</h3><p>${escapeText(d.ingress)}</p>`;
+        item.innerHTML = `
+          <small>${escapeText(d.tid)} · ${escapeText(d.kategori)} · ${escapeText(d.sourceType || "")}</small>
+          <h3>${escapeText(d.tittel)}</h3>
+          <p>${escapeText(d.ingress)}</p>
+        `;
         item.addEventListener("click", () => openEditor(i));
         $("approvalList").appendChild(item);
       });
@@ -125,6 +168,7 @@ import {
 
     if(exists("publishedList")){
       $("publishedList").innerHTML = published.length ? "" : `<div class="previewEmpty">Ingen publiserte saker.</div>`;
+
       published.forEach((d, i) => {
         const item = document.createElement("div");
         item.className = "listItem";
@@ -140,25 +184,25 @@ import {
       });
 
       document.querySelectorAll("[data-unpublish]").forEach((btn) => {
-        btn.addEventListener("click", (e) => {
+        btn.addEventListener("click", async (e) => {
           e.stopPropagation();
+
           const index = Number(btn.dataset.unpublish);
           const story = published.splice(index, 1)[0];
-          story.id = String(story.id || makeId("draft")).replace("sak", "draft");
+
+          story.id = normalizeStoryId(story);
           story.status = "til_godkjenning";
+
           drafts.unshift(story);
-          
-          addDoc(collection(db, COLLECTIONS.kladder), {
-            ...story,
-            opprettetAt: serverTimestamp()
-          })
-          .then(() => {
-            console.log("Kladd lagret i Firebase");
-          })
-          .catch((err) => {
+
+          try{
+            await saveDraftToFirebase(story);
+            await saveStoryToFirebase(story);
+            console.log("Sak trukket tilbake uten ny ID");
+          }catch(err){
             console.error("Firebase-feil:", err);
-          });
-            
+          }
+
           renderAll();
           switchTab("godkjenning");
         });
@@ -167,13 +211,18 @@ import {
 
     if(exists("partnerList")){
       $("partnerList").innerHTML = partners.length ? "" : `<div class="previewEmpty">Ingen partnere lagt inn.</div>`;
+
       partners.forEach((p, i) => {
         const item = document.createElement("div");
         item.className = "listItem";
-        item.innerHTML = `<small>${escapeText(p.niva)} · ${escapeText(p.size)} · ${escapeText(p.start || "")} – ${escapeText(p.slutt || "")}</small><h3>${escapeText(p.navn)}</h3><p>${escapeText(p.tekst)}</p>`;
+        item.innerHTML = `
+          <small>${escapeText(p.niva)} · ${escapeText(p.size)} · ${escapeText(p.start || "")} – ${escapeText(p.slutt || "")}</small>
+          <h3>${escapeText(p.navn)}</h3>
+          <p>${escapeText(p.tekst)}</p>
+        `;
         item.addEventListener("dblclick", () => {
           if(confirm("Slette partner?")){
-            partners.splice(i,1);
+            partners.splice(i, 1);
             renderAll();
           }
         });
@@ -183,6 +232,7 @@ import {
 
     if(exists("sourceList")){
       $("sourceList").innerHTML = sources.length ? "" : `<div class="previewEmpty">Ingen kilder lagt inn.</div>`;
+
       sources.forEach((s, i) => {
         const item = document.createElement("div");
         item.className = "listItem";
@@ -218,7 +268,10 @@ import {
     save();
     renderLists();
     renderExports();
-    if(exists("status")) $("status").textContent = `${drafts.length} til godkjenning · ${published.length} publisert · ${partners.length} partnere · ${sources.length} kilder`;
+
+    if(exists("status")){
+      $("status").textContent = `${drafts.length} til godkjenning · ${published.length} publisert · ${partners.length} partnere · ${sources.length} kilder`;
+    }
   }
 
   function openEditor(index){
@@ -237,12 +290,16 @@ import {
     if(exists("editMediaPlacement")) $("editMediaPlacement").value = d.mediaPlacement || "top";
 
     updateEditorPreview();
-    if(exists("editorModal")) $("editorModal").classList.add("open");
+
+    if(exists("editorModal")){
+      $("editorModal").classList.add("open");
+    }
   }
 
   function readEditor(){
     return {
       ...drafts[activeDraftIndex],
+      id: normalizeStoryId(drafts[activeDraftIndex] || {}),
       kategori: value("editKategori", "Kort forklart"),
       sourceType: value("editSourceType", ""),
       sourceUrl: value("editSourceUrl", ""),
@@ -266,8 +323,9 @@ import {
   });
 
   if(exists("makeDraft")){
-    $("makeDraft").addEventListener("click", () => {
+    $("makeDraft").addEventListener("click", async () => {
       const raw = value("rawInput", "").trim();
+
       if(!raw){
         alert("Lim inn råtekst først.");
         return;
@@ -275,6 +333,13 @@ import {
 
       const draft = makeLocalAiDraft(raw);
       drafts.unshift(draft);
+
+      try{
+        await saveDraftToFirebase(draft);
+      }catch(err){
+        console.error("Firebase-feil ved lagring av kladd:", err);
+      }
+
       renderPreview("draftPreview", draft);
       renderAll();
       switchTab("godkjenning");
@@ -283,53 +348,88 @@ import {
 
   if(exists("clearRaw")){
     $("clearRaw").addEventListener("click", () => {
-      ["rawInput","customSourceType","sourceUrl","rawImage","rawVideo"].forEach(id => { if(exists(id)) $(id).value = ""; });
+      ["rawInput", "customSourceType", "sourceUrl", "rawImage", "rawVideo"].forEach(id => {
+        if(exists(id)) $(id).value = "";
+      });
+
       renderPreview("draftPreview", null);
     });
   }
 
-  if(exists("closeEditor")) $("closeEditor").addEventListener("click", () => $("editorModal").classList.remove("open"));
+  if(exists("closeEditor")){
+    $("closeEditor").addEventListener("click", () => $("editorModal").classList.remove("open"));
+  }
+
   if(exists("editorModal")){
     $("editorModal").addEventListener("click", (e) => {
-      if(e.target.id === "editorModal") $("editorModal").classList.remove("open");
+      if(e.target.id === "editorModal"){
+        $("editorModal").classList.remove("open");
+      }
     });
   }
 
-  ["editKategori","editSourceType","editSourceUrl","editTid","editTittel","editIngress","editTekst","editBilde","editVideo","editMediaPlacement"].forEach(id => {
+  [
+    "editKategori",
+    "editSourceType",
+    "editSourceUrl",
+    "editTid",
+    "editTittel",
+    "editIngress",
+    "editTekst",
+    "editBilde",
+    "editVideo",
+    "editMediaPlacement"
+  ].forEach(id => {
     if(exists(id)) $(id).addEventListener("input", updateEditorPreview);
   });
 
   if(exists("saveDraftChanges")){
-    $("saveDraftChanges").addEventListener("click", () => {
+    $("saveDraftChanges").addEventListener("click", async () => {
       if(activeDraftIndex === null) return;
+
       drafts[activeDraftIndex] = readEditor();
+      drafts[activeDraftIndex].status = "til_godkjenning";
+
+      try{
+        await saveDraftToFirebase(drafts[activeDraftIndex]);
+      }catch(err){
+        console.error("Firebase-feil ved lagring:", err);
+      }
+
       renderAll();
       alert("Lagret.");
     });
   }
 
   if(exists("approveDraft")){
-    $("approveDraft").addEventListener("click", () => {
+    $("approveDraft").addEventListener("click", async () => {
       if(activeDraftIndex === null) return;
+
       const story = readEditor();
-      story.id = String(story.id || makeId("sak")).replace("draft", "sak");
-      delete story.status;
-      published.unshift(story);
-      
-      addDoc(collection(db, COLLECTIONS.saker), {
-        ...story,
-        publisertAt: serverTimestamp()
-      })
-      .then(() => {
-        console.log("Sak publisert i Firebase");
-      })
-      .catch((err) => {
-        console.error("Publiserings-feil:", err);
-      });
+      story.id = normalizeStoryId(story);
+      story.status = "publisert";
+
+      const existingIndex = published.findIndex(s => s.id === story.id);
+
+      if(existingIndex >= 0){
+        published[existingIndex] = story;
+      }else{
+        published.unshift(story);
+      }
 
       drafts.splice(activeDraftIndex, 1);
       activeDraftIndex = null;
-      $("editorModal").classList.remove("open");
+
+      try{
+        await saveStoryToFirebase(story);
+      }catch(err){
+        console.error("Publiserings-feil:", err);
+      }
+
+      if(exists("editorModal")){
+        $("editorModal").classList.remove("open");
+      }
+
       renderAll();
       switchTab("publisert");
     });
@@ -338,10 +438,15 @@ import {
   if(exists("deleteDraft")){
     $("deleteDraft").addEventListener("click", () => {
       if(activeDraftIndex === null) return;
+
       if(confirm("Slette kladden?")){
         drafts.splice(activeDraftIndex, 1);
         activeDraftIndex = null;
-        $("editorModal").classList.remove("open");
+
+        if(exists("editorModal")){
+          $("editorModal").classList.remove("open");
+        }
+
         renderAll();
       }
     });
@@ -363,7 +468,10 @@ import {
         aktiv: true
       });
 
-      ["partnerName","partnerLogoText","partnerLogoUrl","partnerText","partnerUrl","partnerStart","partnerEnd"].forEach(id => { if(exists(id)) $(id).value = ""; });
+      ["partnerName", "partnerLogoText", "partnerLogoUrl", "partnerText", "partnerUrl", "partnerStart", "partnerEnd"].forEach(id => {
+        if(exists(id)) $(id).value = "";
+      });
+
       renderAll();
     });
   }
@@ -380,7 +488,10 @@ import {
         active: true
       });
 
-      ["sourceName","sourceLink","sourceInstruction"].forEach(id => { if(exists(id)) $(id).value = ""; });
+      ["sourceName", "sourceLink", "sourceInstruction"].forEach(id => {
+        if(exists(id)) $(id).value = "";
+      });
+
       renderAll();
     });
   }
@@ -390,18 +501,21 @@ import {
     alert("Kopiert.");
   }
 
-  function downloadText(id, filename, type="application/javascript"){
-    const blob = new Blob([$(id).textContent], {type});
+  function downloadText(id, filename, type = "application/javascript"){
+    const blob = new Blob([$(id).textContent], { type });
     const a = document.createElement("a");
+
     a.href = URL.createObjectURL(blob);
     a.download = filename;
     a.click();
+
     URL.revokeObjectURL(a.href);
   }
 
   if(exists("copyStories")) $("copyStories").addEventListener("click", () => copyText("storiesOutput"));
   if(exists("copyPartners")) $("copyPartners").addEventListener("click", () => copyText("partnersOutput"));
   if(exists("copySources")) $("copySources").addEventListener("click", () => copyText("sourcesOutput"));
+
   if(exists("downloadStories")) $("downloadStories").addEventListener("click", () => downloadText("storiesOutput", "saker.js"));
   if(exists("downloadPartners")) $("downloadPartners").addEventListener("click", () => downloadText("partnersOutput", "partners.js"));
   if(exists("downloadSources")) $("downloadSources").addEventListener("click", () => downloadText("sourcesOutput", "sources.json", "application/json"));
