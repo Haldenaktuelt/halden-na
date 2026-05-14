@@ -1,4 +1,11 @@
-document.addEventListener("DOMContentLoaded", () => {
+import {
+  db,
+  collection,
+  addDoc,
+  serverTimestamp,
+  COLLECTIONS
+} from "../../00_firebase/firebase-db.js";
+  document.addEventListener("DOMContentLoaded", () => {
   const defaultStories = window.HALDEN_NA_SAKER || [];
   const defaultPartners = window.HALDEN_NA_PARTNERE || [];
 
@@ -140,6 +147,18 @@ document.addEventListener("DOMContentLoaded", () => {
           story.id = String(story.id || makeId("draft")).replace("sak", "draft");
           story.status = "til_godkjenning";
           drafts.unshift(story);
+          
+          addDoc(collection(db, COLLECTIONS.kladder), {
+            ...story,
+            opprettetAt: serverTimestamp()
+          })
+          .then(() => {
+            console.log("Kladd lagret i Firebase");
+          })
+          .catch((err) => {
+            console.error("Firebase-feil:", err);
+          });
+            
           renderAll();
           switchTab("godkjenning");
         });
@@ -296,6 +315,18 @@ document.addEventListener("DOMContentLoaded", () => {
       story.id = String(story.id || makeId("sak")).replace("draft", "sak");
       delete story.status;
       published.unshift(story);
+      
+      addDoc(collection(db, COLLECTIONS.saker), {
+        ...story,
+        publisertAt: serverTimestamp()
+      })
+      .then(() => {
+        console.log("Sak publisert i Firebase");
+      })
+      .catch((err) => {
+        console.error("Publiserings-feil:", err);
+      });
+
       drafts.splice(activeDraftIndex, 1);
       activeDraftIndex = null;
       $("editorModal").classList.remove("open");
