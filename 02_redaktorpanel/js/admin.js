@@ -31,6 +31,24 @@ document.addEventListener("DOMContentLoaded", () => {
     return new Date().toLocaleTimeString("no-NO", { hour:"2-digit", minute:"2-digit" });
   }
 
+  function nowIso(){
+    return new Date().toISOString();
+  }
+
+  function localDateTimeToIso(value){
+    if(!value) return nowIso();
+    const d = new Date(value);
+    return isNaN(d.getTime()) ? nowIso() : d.toISOString();
+  }
+
+  function isoToLocalDateTime(value){
+    if(!value) return "";
+    const d = new Date(value);
+    if(isNaN(d.getTime())) return "";
+    const pad = (n) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+
   function makeId(prefix){
     return prefix + "-" + Date.now();
   }
@@ -54,46 +72,77 @@ document.addEventListener("DOMContentLoaded", () => {
     return exists(id) ? $(id).value : fallback;
   }
 
-  function categoryFromType(type){
-    if(type === "Øst 110") return "Politilogg";
-    if(type === "Egendefinert") return "Kort forklart";
-    return type || "Kort forklart";
+  function checked(id){
+    return exists(id) ? $(id).checked === true : false;
   }
 
-  function makeLocalAiDraft(raw){
-    const type = value("sourceType", "Kort forklart");
-    const customType = value("customSourceType", "");
-    const sourceUrl = value("sourceUrl", "");
-    const image = value("rawImage", "");
-    const video = value("rawVideo", "");
-    const mediaPlacement = value("mediaPlacement", "top");
+  function categoryFromType(type){
+    if(type === "Vei / Trafikk") return "Trafikk";
+    return type || "Lokalt";
+  }
 
-    const clean = raw.trim().replace(/\s+/g, " ");
-    const firstSentence = clean.split(/[.!?]/).filter(Boolean)[0] || clean.slice(0, 90);
-    const kategori = categoryFromType(type);
-    const sourceType = type === "Egendefinert" ? customType : type;
-
-    let prefix = "Kort forklart";
-    if(kategori === "Kommune") prefix = "Kommunal sak";
-    if(kategori === "Politilogg") prefix = "Hendelse";
-    if(kategori === "Arrangement") prefix = "Dette skjer";
-    if(kategori === "Vei / Trafikk") prefix = "Trafikk";
-    if(kategori === "Norge & Verden") prefix = "Norge & Verden";
+  function normalizeStory(story){
+    const bilde = story.bildeUrl || story.bilde || "";
+    const video = story.videoUrl || story.video || "";
+    const mediaPlassering = story.mediaPlassering || story.mediaPlacement || "top";
+    const kilde = story.kilde || story.sourceType || "";
+    const sourceUrl = story.sourceUrl || story.kildeUrl || "";
+    const dato = story.dato || nowIso();
 
     return {
-      id: makeId("sak"),
-      tid: nowTime(),
-      kategori,
-      sourceType: sourceType || type,
+      ...story,
+      id: normalizeStoryId(story),
+      kategori: story.kategori || "Lokalt",
+      tittel: story.tittel || "",
+      ingress: story.ingress || "",
+      tekst: story.tekst || "",
+      bildeUrl: bilde,
+      videoUrl: video,
+      mediaPlassering,
+      kilde,
       sourceUrl,
-      tittel: `${prefix}: ${firstSentence}`.slice(0, 88),
-      ingress: clean.slice(0, 170) + (clean.length > 170 ? "..." : ""),
-      tekst: `Kort forklart:\n\n${raw.trim()}\n\nKontroll før publisering:\n• Sjekk fakta\n• Sjekk dato/sted\n• Sjekk kilde\n• Fjern usikker informasjon\n• Godkjenn tittel og ingress`,
-      bilde: image,
+      status: story.status || "til_godkjenning",
+      dato,
+      tid: story.tid || nowTime(),
+      hovedsak: story.hovedsak === true,
+
+      bilde,
       video,
-      mediaPlacement,
-      status: "til_godkjenning"
+      mediaPlacement: mediaPlassering,
+      sourceType: kilde
     };
+  }
+
+  function readNewStoryForm(){
+    const kategori = categoryFromType(value("sourceType", "Lokalt"));
+    const tittel = value("newTitle", "").trim();
+    const ingress = value("newIngress", "").trim();
+    const tekst = value("newText", "").trim();
+    const raw = value("rawInput", "").trim();
+    const bildeUrl = value("rawImage", "").trim();
+    const videoUrl = value("rawVideo", "").trim();
+    const mediaPlassering = value("mediaPlacement", "top");
+    const kilde = value("customSourceType", "").trim();
+    const sourceUrl = value("sourceUrl", "").trim();
+    const dato = localDateTimeToIso(value("newDate", ""));
+
+    return normalizeStory({
+      id: makeId("sak"),
+      kategori,
+      tittel,
+      ingress,
+      tekst: tekst || raw,
+      bildeUrl,
+      videoUrl,
+      mediaPlassering,
+      kilde,
+      sourceUrl,
+      status: "til_godkjenning",
+      dato,
+      tid: nowTime(),
+      hovedsak: checked("mainStory"),
+      rawInput: raw
+    });
   }
 
   function renderPreview(targetId, draft){
@@ -104,20 +153,23 @@ document.addEventListener("DOMContentLoaded", () => {
       return;
     }
 
-    const media = draft.video
-      ? `<video src="${escapeText(draft.video)}" controls></video>`
-      : draft.bilde
-        ? `<img src="${escapeText(draft.bilde)}" alt="">`
+    const d = normalizeStory(draft);
+
+    const media = d.videoUrl
+      ? `<video src="${escapeText(d.videoUrl)}" controls></video>`
+      : d.bildeUrl
+        ? `<img src="${escapeText(d.bildeUrl)}" alt="">`
         : "";
 
     $(targetId).innerHTML = `
       <div class="hnPreview">
-        ${draft.mediaPlacement === "top" ? media : ""}
-        <div class="kicker">${escapeText(draft.kategori)}</div>
-        <h2>${escapeText(draft.tittel)}</h2>
-        <p><b>${escapeText(draft.ingress)}</b></p>
-        <p>${escapeText(draft.tekst)}</p>
-        ${draft.mediaPlacement === "bottom" ? media : ""}
+        ${d.mediaPlassering === "top" ? media : ""}
+        <div class="kicker">${escapeText(d.kategori)}${d.hovedsak ? " · Hovedsak" : ""}</div>
+        <h2>${escapeText(d.tittel || "Uten tittel")}</h2>
+        <p><b>${escapeText(d.ingress)}</b></p>
+        <p>${escapeText(d.tekst)}</p>
+        ${d.kilde ? `<p><small>Kilde: ${escapeText(d.kilde)}</small></p>` : ""}
+        ${d.mediaPlassering === "bottom" ? media : ""}
       </div>
     `;
   }
@@ -128,23 +180,21 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   async function saveStoryToFirebase(story){
-    const id = normalizeStoryId(story);
-    story.id = id;
+    const cleanStory = normalizeStory(story);
+    cleanStory.status = cleanStory.status || "publisert";
 
-    await setDoc(doc(db, COLLECTIONS.saker, id), {
-      ...story,
-      status: story.status || "publisert",
+    await setDoc(doc(db, COLLECTIONS.saker, cleanStory.id), {
+      ...cleanStory,
       oppdatertAt: serverTimestamp()
     }, { merge: true });
   }
 
   async function saveDraftToFirebase(story){
-    const id = normalizeStoryId(story);
-    story.id = id;
+    const cleanStory = normalizeStory(story);
+    cleanStory.status = cleanStory.status || "til_godkjenning";
 
-    await setDoc(doc(db, COLLECTIONS.kladder, id), {
-      ...story,
-      status: story.status || "til_godkjenning",
+    await setDoc(doc(db, COLLECTIONS.kladder, cleanStory.id), {
+      ...cleanStory,
       oppdatertAt: serverTimestamp()
     }, { merge: true });
   }
@@ -154,12 +204,15 @@ document.addEventListener("DOMContentLoaded", () => {
       $("approvalList").innerHTML = drafts.length ? "" : `<div class="previewEmpty">Ingen saker til godkjenning.</div>`;
 
       drafts.forEach((d, i) => {
+        const story = normalizeStory(d);
         const item = document.createElement("div");
+        const main = story.hovedsak ? " · Hovedsak" : "";
+
         item.className = "listItem";
         item.innerHTML = `
-          <small>${escapeText(d.tid)} · ${escapeText(d.kategori)} · ${escapeText(d.sourceType || "")}</small>
-          <h3>${escapeText(d.tittel)}</h3>
-          <p>${escapeText(d.ingress)}</p>
+          <small>${escapeText(story.tid)} · ${escapeText(story.kategori)}${main} · ${escapeText(story.kilde || "")}</small>
+          <h3>${escapeText(story.tittel || "Uten tittel")}</h3>
+          <p>${escapeText(story.ingress)}</p>
         `;
         item.addEventListener("click", () => openEditor(i));
         $("approvalList").appendChild(item);
@@ -170,12 +223,15 @@ document.addEventListener("DOMContentLoaded", () => {
       $("publishedList").innerHTML = published.length ? "" : `<div class="previewEmpty">Ingen publiserte saker.</div>`;
 
       published.forEach((d, i) => {
+        const story = normalizeStory(d);
         const item = document.createElement("div");
+        const main = story.hovedsak ? " · Hovedsak" : "";
+
         item.className = "listItem";
         item.innerHTML = `
-          <small>${escapeText(d.tid)} · ${escapeText(d.kategori)} · Publisert</small>
-          <h3>${escapeText(d.tittel)}</h3>
-          <p>${escapeText(d.ingress)}</p>
+          <small>${escapeText(story.tid)} · ${escapeText(story.kategori)} · Publisert${main}</small>
+          <h3>${escapeText(story.tittel || "Uten tittel")}</h3>
+          <p>${escapeText(story.ingress)}</p>
           <div class="itemActions">
             <button type="button" class="warn" data-unpublish="${i}">Trekk tilbake</button>
           </div>
@@ -188,11 +244,9 @@ document.addEventListener("DOMContentLoaded", () => {
           e.stopPropagation();
 
           const index = Number(btn.dataset.unpublish);
-          const story = published.splice(index, 1)[0];
+          const story = normalizeStory(published.splice(index, 1)[0]);
 
-          story.id = normalizeStoryId(story);
           story.status = "til_godkjenning";
-
           drafts.unshift(story);
 
           try{
@@ -276,18 +330,19 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function openEditor(index){
     activeDraftIndex = index;
-    const d = drafts[index];
+    const d = normalizeStory(drafts[index]);
 
-    if(exists("editKategori")) $("editKategori").value = d.kategori || "Kort forklart";
-    if(exists("editSourceType")) $("editSourceType").value = d.sourceType || "";
-    if(exists("editSourceUrl")) $("editSourceUrl").value = d.sourceUrl || "";
-    if(exists("editTid")) $("editTid").value = d.tid || nowTime();
+    if(exists("editKategori")) $("editKategori").value = d.kategori || "Lokalt";
     if(exists("editTittel")) $("editTittel").value = d.tittel || "";
     if(exists("editIngress")) $("editIngress").value = d.ingress || "";
     if(exists("editTekst")) $("editTekst").value = d.tekst || "";
-    if(exists("editBilde")) $("editBilde").value = d.bilde || "";
-    if(exists("editVideo")) $("editVideo").value = d.video || "";
-    if(exists("editMediaPlacement")) $("editMediaPlacement").value = d.mediaPlacement || "top";
+    if(exists("editBilde")) $("editBilde").value = d.bildeUrl || "";
+    if(exists("editVideo")) $("editVideo").value = d.videoUrl || "";
+    if(exists("editMediaPlacement")) $("editMediaPlacement").value = d.mediaPlassering || "top";
+    if(exists("editSourceType")) $("editSourceType").value = d.kilde || "";
+    if(exists("editSourceUrl")) $("editSourceUrl").value = d.sourceUrl || "";
+    if(exists("editTid")) $("editTid").value = d.tid || nowTime();
+    if(exists("editMainStory")) $("editMainStory").checked = d.hovedsak === true;
 
     updateEditorPreview();
 
@@ -297,25 +352,52 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function readEditor(){
-    return {
-      ...drafts[activeDraftIndex],
-      id: normalizeStoryId(drafts[activeDraftIndex] || {}),
-      kategori: value("editKategori", "Kort forklart"),
-      sourceType: value("editSourceType", ""),
-      sourceUrl: value("editSourceUrl", ""),
-      tid: value("editTid", nowTime()),
+    const base = drafts[activeDraftIndex] || {};
+    const mediaPlassering = value("editMediaPlacement", "top");
+    const bildeUrl = value("editBilde", "");
+    const videoUrl = value("editVideo", "");
+    const kilde = value("editSourceType", "");
+
+    return normalizeStory({
+      ...base,
+      id: normalizeStoryId(base),
+      kategori: value("editKategori", "Lokalt"),
       tittel: value("editTittel", ""),
       ingress: value("editIngress", ""),
       tekst: value("editTekst", ""),
-      bilde: value("editBilde", ""),
-      video: value("editVideo", ""),
-      mediaPlacement: value("editMediaPlacement", "top")
-    };
+      bildeUrl,
+      videoUrl,
+      mediaPlassering,
+      kilde,
+      sourceUrl: value("editSourceUrl", ""),
+      tid: value("editTid", nowTime()),
+      dato: base.dato || nowIso(),
+      hovedsak: checked("editMainStory")
+    });
   }
 
   function updateEditorPreview(){
     if(activeDraftIndex === null) return;
     renderPreview("hnPreview", readEditor());
+  }
+
+  function clearNewStoryForm(){
+    [
+      "newTitle",
+      "newIngress",
+      "newText",
+      "rawInput",
+      "customSourceType",
+      "sourceUrl",
+      "rawImage",
+      "rawVideo",
+      "newDate"
+    ].forEach(id => {
+      if(exists(id)) $(id).value = "";
+    });
+
+    if(exists("mainStory")) $("mainStory").checked = false;
+    renderPreview("draftPreview", null);
   }
 
   document.querySelectorAll(".tab").forEach((tab) => {
@@ -324,36 +406,29 @@ document.addEventListener("DOMContentLoaded", () => {
 
   if(exists("makeDraft")){
     $("makeDraft").addEventListener("click", async () => {
-      const raw = value("rawInput", "").trim();
+      const story = readNewStoryForm();
 
-      if(!raw){
-        alert("Lim inn råtekst først.");
+      if(!story.tittel && !story.ingress && !story.tekst){
+        alert("Skriv minst tittel, ingress eller brødtekst først.");
         return;
       }
 
-      const draft = makeLocalAiDraft(raw);
-      drafts.unshift(draft);
+      drafts.unshift(story);
 
       try{
-        await saveDraftToFirebase(draft);
+        await saveDraftToFirebase(story);
       }catch(err){
         console.error("Firebase-feil ved lagring av kladd:", err);
       }
 
-      renderPreview("draftPreview", draft);
+      renderPreview("draftPreview", story);
       renderAll();
       switchTab("godkjenning");
     });
   }
 
   if(exists("clearRaw")){
-    $("clearRaw").addEventListener("click", () => {
-      ["rawInput", "customSourceType", "sourceUrl", "rawImage", "rawVideo"].forEach(id => {
-        if(exists(id)) $(id).value = "";
-      });
-
-      renderPreview("draftPreview", null);
-    });
+    $("clearRaw").addEventListener("click", clearNewStoryForm);
   }
 
   if(exists("closeEditor")){
@@ -378,9 +453,35 @@ document.addEventListener("DOMContentLoaded", () => {
     "editTekst",
     "editBilde",
     "editVideo",
-    "editMediaPlacement"
+    "editMediaPlacement",
+    "editMainStory"
   ].forEach(id => {
-    if(exists(id)) $(id).addEventListener("input", updateEditorPreview);
+    if(exists(id)) {
+      const eventType = id === "editMainStory" ? "change" : "input";
+      $(id).addEventListener(eventType, updateEditorPreview);
+    }
+  });
+
+  [
+    "sourceType",
+    "newTitle",
+    "newIngress",
+    "newText",
+    "rawImage",
+    "rawVideo",
+    "mediaPlacement",
+    "customSourceType",
+    "sourceUrl",
+    "newDate",
+    "mainStory"
+  ].forEach(id => {
+    if(exists(id)) {
+      const eventType = id === "mainStory" ? "change" : "input";
+      $(id).addEventListener(eventType, () => {
+        const story = readNewStoryForm();
+        renderPreview("draftPreview", story);
+      });
+    }
   });
 
   if(exists("saveDraftChanges")){
@@ -406,7 +507,6 @@ document.addEventListener("DOMContentLoaded", () => {
       if(activeDraftIndex === null) return;
 
       const story = readEditor();
-      story.id = normalizeStoryId(story);
       story.status = "publisert";
 
       const existingIndex = published.findIndex(s => s.id === story.id);

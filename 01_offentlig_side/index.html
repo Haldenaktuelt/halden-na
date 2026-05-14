@@ -6,64 +6,118 @@
   <title>HALDEN NÅ</title>
   <link rel="stylesheet" href="css/style.css">
 </head>
+
 <body>
 <div class="app">
   <header class="top">
-    <div><div class="brand">HALDEN <span>NÅ</span></div><div class="tagline">Dagens viktigste — kort forklart, rolig og lokalt</div></div>
-    <div class="topRight"><div class="status" id="status-count">Laster saker...</div><button class="tipBtn" type="button" id="tips-btn">Tips oss</button></div>
+    <div>
+      <div class="brand">HALDEN <span>NÅ</span></div>
+      <div class="tagline">Dagens viktigste — kort forklart, rolig og lokalt</div>
+    </div>
+
+    <div class="topRight">
+      <div class="status" id="status-count">Laster saker...</div>
+      <button class="tipBtn" type="button" id="tips-btn">Tips oss</button>
+    </div>
   </header>
 
   <nav class="chips">
-    <button class="chip active" type="button" data-filter="Alle">Forside</button>
-    <button class="chip" type="button" data-filter="Kort forklart">Kort forklart</button>
+    <button class="chip active" type="button" data-filter="Forside">Forside</button>
+    <button class="chip" type="button" data-filter="Lokalt">Lokalt</button>
+    <button class="chip" type="button" data-filter="Politilogg">Politilogg</button>
     <button class="chip" type="button" data-filter="Kommune">Kommune</button>
     <button class="chip" type="button" data-filter="Arrangement">Arrangement</button>
-    <button class="chip" type="button" data-filter="Vei / Trafikk">Vei / Trafikk</button>
-    <button class="chip" type="button" data-filter="Politilogg">Politilogg</button>
-    <button class="chip" type="button" data-filter="Norge & Verden">Norge & Verden</button>
-    <button class="chip" type="button" data-filter="Mest lest">Mest lest</button>
+
+    <div class="moreWrap">
+      <button class="chip" type="button" id="more-btn">Mer</button>
+      <div class="moreMenu" id="more-menu">
+        <button type="button" data-filter="Trafikk">Trafikk</button>
+        <button type="button" data-filter="Sport">Sport</button>
+        <button type="button" data-filter="Norge & Verden">Norge & Verden</button>
+        <button type="button" data-filter="Kultur">Kultur</button>
+        <button type="button" data-filter="Meninger">Meninger</button>
+        <button type="button" data-filter="Historie">Historie</button>
+        <button type="button" data-filter="Mest lest">Mest lest</button>
+      </div>
+    </div>
   </nav>
 
-  <main class="heroGrid">
+  <main class="heroGrid" id="frontHero">
     <div class="sliderWrap">
       <div class="slider" id="hero-slider">
-        <article id="hero1" data-sak-index="0" class="hero"><div class="heroContent"><div class="kicker" id="hero1-kicker">Laster...</div><h1 id="hero1-title">Laster sak...</h1><div class="lead" id="hero1-lead">Laster ingress...</div><button class="read" type="button">LES</button></div></article>
-        <article id="hero2" data-sak-index="1" class="hero"><div class="heroContent"><div class="kicker" id="hero2-kicker">Laster...</div><h1 id="hero2-title">Laster sak...</h1><div class="lead" id="hero2-lead">Laster ingress...</div><button class="read" type="button">LES</button></div></article>
-        <article id="hero3" data-sak-index="2" class="hero"><div class="heroContent"><div class="kicker" id="hero3-kicker">Laster...</div><h1 id="hero3-title">Laster sak...</h1><div class="lead" id="hero3-lead">Laster ingress...</div><button class="read" type="button">LES</button></div></article>
+        <article id="hero1" data-sak-index="0" class="hero">
+          <div class="heroContent">
+            <div class="kicker" id="hero1-kicker">Laster...</div>
+            <h1 id="hero1-title">Laster sak...</h1>
+            <div class="lead" id="hero1-lead">Laster ingress...</div>
+            <button class="read" type="button">LES</button>
+          </div>
+        </article>
+
+        <article id="hero2" data-sak-index="1" class="hero">
+          <div class="heroContent">
+            <div class="kicker" id="hero2-kicker">Laster...</div>
+            <h1 id="hero2-title">Laster sak...</h1>
+            <div class="lead" id="hero2-lead">Laster ingress...</div>
+            <button class="read" type="button">LES</button>
+          </div>
+        </article>
+
+        <article id="hero3" data-sak-index="2" class="hero">
+          <div class="heroContent">
+            <div class="kicker" id="hero3-kicker">Laster...</div>
+            <h1 id="hero3-title">Laster sak...</h1>
+            <div class="lead" id="hero3-lead">Laster ingress...</div>
+            <button class="read" type="button">LES</button>
+          </div>
+        </article>
       </div>
+
       <div class="sliderControls">
         <button type="button" id="prev-hero">Forrige</button>
-        <div class="dots"><div class="dot on" id="dot1"></div><div class="dot" id="dot2"></div><div class="dot" id="dot3"></div></div>
+        <div class="dots">
+          <div class="dot on" id="dot1"></div>
+          <div class="dot" id="dot2"></div>
+          <div class="dot" id="dot3"></div>
+        </div>
         <button type="button" id="next-hero">Neste</button>
       </div>
     </div>
-    <aside class="side"><section class="panel"><div class="kicker">Det folk følger</div><h2>Mest lest akkurat nå</h2><div id="mest-lest-liste"></div></section></aside>
+
+    <aside class="side">
+      <section class="panel">
+        <div class="kicker">Det folk følger</div>
+        <h2>Mest lest akkurat nå</h2>
+        <div id="mest-lest-liste"></div>
+      </section>
+    </aside>
   </main>
 
   <section class="sections" id="seksjonskort"></section>
 </div>
 
-<nav class="bottom">
-  <button class="on" type="button" data-filter="Alle">Nå</button>
-  <button type="button" data-filter="Kort forklart">Saker</button>
-  <button type="button" id="kart-btn">Kart</button>
-  <button type="button" id="bottom-tips">Tips</button>
-  <button type="button" id="bottom-menu">Meny</button>
-</nav>
-
 <div id="modal" class="modal" aria-hidden="true">
   <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="modal-title">
     <button class="close" id="close-modal" type="button">Lukk</button>
+
     <div id="modal-media-top" class="modalMedia"></div>
+
     <div class="kicker" id="modal-kicker">Laster...</div>
     <h1 id="modal-title">Laster sak...</h1>
     <p id="modal-text">Laster innhold...</p>
+
     <div id="modal-media-bottom" class="modalMedia bottomMedia"></div>
+
+    <div id="modal-meta" class="articleMeta"></div>
+
     <div class="partnerAd" id="partner-ad">
       <div class="partnerLabel" id="partner-label">Partner</div>
       <div class="partnerBody">
         <div class="partnerLogo" id="partner-logo">HN</div>
-        <div class="partnerText"><b id="partner-title">HALDEN NÅ</b><span id="partner-text">Kort forklart. Lokalt og forståelig.</span></div>
+        <div class="partnerText">
+          <b id="partner-title">HALDEN NÅ</b>
+          <span id="partner-text">Kort forklart. Lokalt og forståelig.</span>
+        </div>
         <a id="partner-url" class="partnerButton" href="#" target="_blank" rel="noopener">Besøk nettside</a>
       </div>
     </div>

@@ -9,7 +9,6 @@
 
 <body>
   <div class="app">
-
     <header class="top">
       <div>
         <div class="brand">HALDEN <span>NÅ</span></div>
@@ -29,13 +28,9 @@
 
     <section id="ai" class="view active">
       <div class="grid">
-
         <div class="card">
-          <h2>Opprett ny sak</h2>
-          <p class="small">
-            Lim inn råstoff. Systemet lager et forslag som sendes til godkjenning.
-            Ingenting publiseres automatisk.
-          </p>
+          <h2>Ny sak</h2>
+          <p class="small">Fyll inn saken. Den sendes til godkjenning, ikke direkte publisering.</p>
 
           <label>Kategori</label>
           <select id="sourceType">
@@ -50,17 +45,16 @@
             <option>Meninger</option>
             <option>Historie</option>
             <option>Kort forklart</option>
-            <option>Egendefinert</option>
           </select>
 
-          <label>Egendefinert type / kilde</label>
-          <input id="customSourceType" placeholder="F.eks. Halden kommune, Øst politidistrikt, Statens vegvesen">
+          <label>Tittel</label>
+          <input id="newTitle" placeholder="F.eks. Brann: Lillestrøm">
 
-          <label>Kilde / URL</label>
-          <input id="sourceUrl" placeholder="https://...">
+          <label>Ingress</label>
+          <textarea id="newIngress" placeholder="Kort intro til saken..."></textarea>
 
-          <label>Råtekst</label>
-          <textarea id="rawInput" placeholder="Lim inn råstoff her..."></textarea>
+          <label>Brødtekst</label>
+          <textarea id="newText" placeholder="Skriv selve saken her..."></textarea>
 
           <label>Bilde-URL</label>
           <input id="rawImage" placeholder="https://...">
@@ -74,29 +68,41 @@
             <option value="bottom">Bilde/video under tekst</option>
           </select>
 
+          <label>Kilde</label>
+          <input id="customSourceType" placeholder="F.eks. Politiloggen">
+
+          <label>Kilde / URL</label>
+          <input id="sourceUrl" placeholder="https://...">
+
+          <label>Dato</label>
+          <input id="newDate" type="datetime-local">
+
+          <label class="mainStoryBox">
+            <input type="checkbox" id="mainStory">
+            <span>Vis som hovedsak på forsiden</span>
+          </label>
+
+          <label>Råstoff / AI-notat</label>
+          <textarea id="rawInput" placeholder="Valgfritt: lim inn råstoff, politilogg, kommunetekst eller notater her..."></textarea>
+
           <div class="row">
-            <button class="primary" id="makeDraft">Lag forslag til godkjenning</button>
+            <button class="primary" id="makeDraft">Send til godkjenning</button>
             <button class="secondary" id="clearRaw">Tøm</button>
           </div>
         </div>
 
         <div class="card">
           <h2>Forhåndsvisning</h2>
-          <p class="small">
-            Dette er kun et forslag. Saken må åpnes, kontrolleres og godkjennes før publisering.
-          </p>
+          <p class="small">Slik vil saken se ut før godkjenning.</p>
           <div id="draftPreview" class="previewEmpty">Ingen kladd ennå.</div>
         </div>
-
       </div>
     </section>
 
     <section id="godkjenning" class="view">
       <div class="card">
         <h2>Til godkjenning</h2>
-        <p class="small">
-          Trykk på en sak for å redigere, kontrollere og publisere.
-        </p>
+        <p class="small">Trykk på en sak for å redigere, kontrollere og publisere.</p>
         <div id="approvalList" class="stack"></div>
       </div>
     </section>
@@ -104,21 +110,16 @@
     <section id="publisert" class="view">
       <div class="card">
         <h2>Publiserte saker</h2>
-        <p class="small">
-          Her ligger saker som er publisert. En sak kan trekkes tilbake uten at det lages duplikat.
-        </p>
+        <p class="small">Her ligger publiserte saker. De kan trekkes tilbake uten duplikater.</p>
         <div id="publishedList" class="stack"></div>
       </div>
     </section>
 
     <section id="kilder" class="view">
       <div class="grid">
-
         <div class="card">
           <h2>Kilder</h2>
-          <p class="small">
-            Legg inn faste kilder som senere kan brukes av AI-agenten.
-          </p>
+          <p class="small">Legg inn faste kilder som senere kan brukes av AI-agenten.</p>
 
           <label>Kildenavn</label>
           <input id="sourceName" placeholder="F.eks. Halden kommune">
@@ -155,13 +156,11 @@
           <h2>Kildeliste</h2>
           <div id="sourceList" class="stack"></div>
         </div>
-
       </div>
     </section>
 
     <section id="partnere" class="view">
       <div class="grid">
-
         <div class="card">
           <h2>Ny partner / reklame</h2>
 
@@ -215,13 +214,11 @@
           <p class="small">Dobbeltklikk på en partner for å slette.</p>
           <div id="partnerList" class="stack"></div>
         </div>
-
       </div>
     </section>
 
     <section id="eksport" class="view">
       <div class="grid">
-
         <div class="card">
           <h2>Eksporter saker</h2>
           <p class="small">Brukes som lokal backup til <b>01_offentlig_side/data/saker.js</b>.</p>
@@ -251,10 +248,8 @@
           </div>
           <pre id="sourcesOutput"></pre>
         </div>
-
       </div>
     </section>
-
   </div>
 
   <div id="editorModal" class="modal">
@@ -266,7 +261,6 @@
 
       <label>Kategori</label>
       <select id="editKategori">
-        <option>Forside</option>
         <option>Lokalt</option>
         <option>Politilogg</option>
         <option>Kommune</option>
@@ -277,19 +271,9 @@
         <option>Kultur</option>
         <option>Meninger</option>
         <option>Historie</option>
-        <option>Mest lest</option>
         <option>Kort forklart</option>
         <option>Tips</option>
       </select>
-
-      <label>Kilde/type</label>
-      <input id="editSourceType">
-
-      <label>Kilde / URL</label>
-      <input id="editSourceUrl">
-
-      <label>Tid</label>
-      <input id="editTid">
 
       <label>Tittel</label>
       <input id="editTittel">
@@ -311,6 +295,20 @@
         <option value="top">Bilde/video over tekst</option>
         <option value="bottom">Bilde/video under tekst</option>
       </select>
+
+      <label>Kilde</label>
+      <input id="editSourceType">
+
+      <label>Kilde / URL</label>
+      <input id="editSourceUrl">
+
+      <label>Tid</label>
+      <input id="editTid">
+
+      <label class="mainStoryBox">
+        <input type="checkbox" id="editMainStory">
+        <span>Vis som hovedsak på forsiden</span>
+      </label>
 
       <div class="row">
         <button class="primary" id="saveDraftChanges">Lagre endringer</button>
