@@ -7,7 +7,6 @@ import {
   query,
   orderBy,
   onSnapshot,
-  getDocs,
   serverTimestamp,
   COLLECTIONS
 } from "../../00_firebase/firebase-db.js";
@@ -118,35 +117,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
 
   async function refreshDraftsFromFirebase(){
-    try{
-      const q = query(
-        collection(db, COLLECTIONS.saker),
-        orderBy("oppdatertAt", "desc")
-      );
-
-      const snapshot = await getDocs(q);
-      const firebaseDrafts = [];
-
-      snapshot.forEach((docSnap) => {
-        const data = docSnap.data();
-
-        if(data.status === "til_godkjenning"){
-          firebaseDrafts.push(normalizeStory({
-            firebaseId: docSnap.id,
-            ...data
-          }));
-        }
-      });
-
-      drafts = firebaseDrafts;
-      save();
-      renderAll();
-
-      return firebaseDrafts.length;
-    }catch(err){
-      console.error("Kunne ikke hente kladder direkte:", err);
-      return drafts.length;
-    }
+    // Trygg V7:
+    // Kladder hentes live via onSnapshot fra "saker" med status "til_godkjenning".
+    // Denne funksjonen finnes bare for knapper/status etter kildevakt.
+    renderAll();
+    return drafts.length;
   }
 
   function nowTime(){
