@@ -7,6 +7,7 @@ import {
   query,
   orderBy,
   onSnapshot,
+  getDocs,
   serverTimestamp,
   COLLECTIONS
 } from "../../00_firebase/firebase-db.js";
@@ -51,7 +52,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
 
   const draftsQuery = query(
-    collection(db, COLLECTIONS.kladder),
+    collection(db, "kladder"),
     orderBy("oppdatertAt", "desc")
   );
 
@@ -65,9 +66,14 @@ document.addEventListener("DOMContentLoaded", () => {
       }));
     });
 
+    console.log("Kladder hentet fra Firebase:", firebaseDrafts.length);
+
     drafts = firebaseDrafts;
     save();
     renderAll();
+  }, (err) => {
+    console.error("Kladder onSnapshot feilet:", err);
+    refreshDraftsFromFirebase();
   });
 
   const tipsQuery = query(
@@ -135,6 +141,35 @@ document.addEventListener("DOMContentLoaded", () => {
     localStorage.setItem("hn_drafts", JSON.stringify(drafts));
     localStorage.setItem("hn_partners", JSON.stringify(partners));
     localStorage.setItem("hn_sources", JSON.stringify(sources));
+  }
+
+
+  async function refreshDraftsFromFirebase(){
+    try{
+      const q = query(
+        collection(db, "kladder"),
+        orderBy("oppdatertAt", "desc")
+      );
+
+      const snapshot = await getDocs(q);
+      const firebaseDrafts = [];
+
+      snapshot.forEach((docSnap) => {
+        firebaseDrafts.push(normalizeStory({
+          firebaseId: docSnap.id,
+          ...docSnap.data()
+        }));
+      });
+
+      drafts = firebaseDrafts;
+      save();
+      renderAll();
+
+      return firebaseDrafts.length;
+    }catch(err){
+      console.error("Kunne ikke hente kladder direkte:", err);
+      return 0;
+    }
   }
 
   function nowTime(){
@@ -828,8 +863,15 @@ document.addEventListener("DOMContentLoaded", () => {
         throw new Error(data.error || "Kildevakten feilet");
       }
 
-      setStatus(`Kildevakt ferdig · ${data.draftsCreated || 0} kladder laget`);
-      alert(`Kildevakt ferdig.\nKladder laget: ${data.draftsCreated || 0}`);
+      const draftCount = await refreshDraftsFromFirebase();
+
+      setStatus(`Kildevakt ferdig · ${data.draftsCreated || 0} kladder laget · ${draftCount} i listen`);
+
+      if((data.draftsCreated || 0) > 0 || draftCount > 0){
+        switchTab("godkjenning");
+      }
+
+      alert(`Kildevakt ferdig.\nKladder laget: ${data.draftsCreated || 0}\nKladder i listen: ${draftCount}`);
     }catch(err){
       console.error("Kildevakt feilet:", err);
       alert("Kildevakten feilet. Sjekk Netlify Functions og OPENAI_API_KEY.");
@@ -939,7 +981,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
 
   document.querySelectorAll(".tab").forEach((tab) => {
-    tab.addEventListener("click", () => switchTab(tab.dataset.tab));
+    tab.addEventListener("click", async () => {
+      switchTab(tab.dataset.tab);
+
+      if(tab.dataset.tab === "godkjenning"){
+        await refreshDraftsFromFirebase();
+      }
+    });
   });
 
   if(exists("makeAiDraft")){
