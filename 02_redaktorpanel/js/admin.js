@@ -49,30 +49,6 @@ document.addEventListener("DOMContentLoaded", () => {
     save();
     renderAll();
   });
-
-
-  const draftsQuery = collection(db, "kladder");
-
-  onSnapshot(draftsQuery, (snapshot) => {
-    const firebaseDrafts = [];
-
-    snapshot.forEach((docSnap) => {
-      firebaseDrafts.push(normalizeStory({
-        firebaseId: docSnap.id,
-        ...docSnap.data()
-      }));
-    });
-
-    drafts = sortDrafts(firebaseDrafts);
-    save();
-    renderAll();
-
-    console.log("Kladder hentet live:", drafts.length, drafts);
-  }, (err) => {
-    console.error("Kladder onSnapshot feilet:", err);
-    refreshDraftsFromFirebase();
-  });
-
   const tipsQuery = query(
     collection(db, COLLECTIONS.tips),
     orderBy("createdAt", "desc")
@@ -143,26 +119,33 @@ document.addEventListener("DOMContentLoaded", () => {
 
   async function refreshDraftsFromFirebase(){
     try{
-      const snapshot = await getDocs(collection(db, "kladder"));
+      const q = query(
+        collection(db, COLLECTIONS.saker),
+        orderBy("oppdatertAt", "desc")
+      );
+
+      const snapshot = await getDocs(q);
       const firebaseDrafts = [];
 
       snapshot.forEach((docSnap) => {
-        firebaseDrafts.push(normalizeStory({
-          firebaseId: docSnap.id,
-          ...docSnap.data()
-        }));
+        const data = docSnap.data();
+
+        if(data.status === "til_godkjenning"){
+          firebaseDrafts.push(normalizeStory({
+            firebaseId: docSnap.id,
+            ...data
+          }));
+        }
       });
 
-      drafts = sortDrafts(firebaseDrafts);
+      drafts = firebaseDrafts;
       save();
       renderAll();
 
-      console.log("Kladder hentet direkte:", drafts.length, drafts);
-
-      return drafts.length;
+      return firebaseDrafts.length;
     }catch(err){
       console.error("Kunne ikke hente kladder direkte:", err);
-      return 0;
+      return drafts.length;
     }
   }
 
@@ -198,21 +181,6 @@ document.addEventListener("DOMContentLoaded", () => {
       hour:"2-digit",
       minute:"2-digit"
     });
-  }
-
-  function draftDateValue(story){
-    const value = story.oppdatertAt || story.dato || story.createdAt || "";
-
-    if(value && value.toDate){
-      return value.toDate().getTime();
-    }
-
-    const d = new Date(value);
-    return isNaN(d.getTime()) ? 0 : d.getTime();
-  }
-
-  function sortDrafts(list){
-    return [...list].sort((a, b) => draftDateValue(b) - draftDateValue(a));
   }
 
   function localDateTimeToIso(value){
@@ -442,7 +410,7 @@ document.addEventListener("DOMContentLoaded", () => {
   async function saveDraftToFirebase(story){
     const cleanStory = normalizeStory(story);
 
-    await setDoc(doc(db, COLLECTIONS.kladder, cleanStory.id), {
+    await setDoc(doc(db, COLLECTIONS.saker, cleanStory.id), {
       ...cleanStory,
       status: "til_godkjenning",
       oppdatertAt: serverTimestamp()
@@ -456,7 +424,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if(!id) return;
 
-    await deleteDoc(doc(db, COLLECTIONS.kladder, id));
+    await deleteDoc(doc(db, COLLECTIONS.saker, id));
   }
 
   async function deleteStoryFromFirebase(story){
@@ -511,7 +479,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function renderLists(){
     if(exists("approvalList")){
-      console.log("Renderer godkjenning:", drafts.length, drafts);
       $("approvalList").innerHTML = drafts.length ? "" : `<div class="previewEmpty">Ingen saker til godkjenning.</div>`;
 
       drafts.forEach((d, i) => {

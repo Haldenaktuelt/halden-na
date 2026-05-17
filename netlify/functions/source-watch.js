@@ -77,7 +77,7 @@ async function runSourceWatch() {
       const draft = await makeDraftFromSource(s, text);
       const draftId = `ai-${Date.now()}-${safeId(s.name || "kilde")}`;
 
-      await setDocument("kladder", draftId, {
+      await setDocument("saker", draftId, {
         id: draftId,
         kategori: draft.kategori,
         tittel: draft.tittel,
