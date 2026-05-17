@@ -51,10 +51,7 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
 
-  const draftsQuery = query(
-    collection(db, "kladder"),
-    orderBy("oppdatertAt", "desc")
-  );
+  const draftsQuery = collection(db, "kladder");
 
   onSnapshot(draftsQuery, (snapshot) => {
     const firebaseDrafts = [];
@@ -66,11 +63,11 @@ document.addEventListener("DOMContentLoaded", () => {
       }));
     });
 
-    console.log("Kladder hentet fra Firebase:", firebaseDrafts.length);
-
-    drafts = firebaseDrafts;
+    drafts = sortDrafts(firebaseDrafts);
     save();
     renderAll();
+
+    console.log("Kladder hentet live:", drafts.length, drafts);
   }, (err) => {
     console.error("Kladder onSnapshot feilet:", err);
     refreshDraftsFromFirebase();
@@ -146,12 +143,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   async function refreshDraftsFromFirebase(){
     try{
-      const q = query(
-        collection(db, "kladder"),
-        orderBy("oppdatertAt", "desc")
-      );
-
-      const snapshot = await getDocs(q);
+      const snapshot = await getDocs(collection(db, "kladder"));
       const firebaseDrafts = [];
 
       snapshot.forEach((docSnap) => {
@@ -161,11 +153,13 @@ document.addEventListener("DOMContentLoaded", () => {
         }));
       });
 
-      drafts = firebaseDrafts;
+      drafts = sortDrafts(firebaseDrafts);
       save();
       renderAll();
 
-      return firebaseDrafts.length;
+      console.log("Kladder hentet direkte:", drafts.length, drafts);
+
+      return drafts.length;
     }catch(err){
       console.error("Kunne ikke hente kladder direkte:", err);
       return 0;
@@ -204,6 +198,21 @@ document.addEventListener("DOMContentLoaded", () => {
       hour:"2-digit",
       minute:"2-digit"
     });
+  }
+
+  function draftDateValue(story){
+    const value = story.oppdatertAt || story.dato || story.createdAt || "";
+
+    if(value && value.toDate){
+      return value.toDate().getTime();
+    }
+
+    const d = new Date(value);
+    return isNaN(d.getTime()) ? 0 : d.getTime();
+  }
+
+  function sortDrafts(list){
+    return [...list].sort((a, b) => draftDateValue(b) - draftDateValue(a));
   }
 
   function localDateTimeToIso(value){
@@ -502,6 +511,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function renderLists(){
     if(exists("approvalList")){
+      console.log("Renderer godkjenning:", drafts.length, drafts);
       $("approvalList").innerHTML = drafts.length ? "" : `<div class="previewEmpty">Ingen saker til godkjenning.</div>`;
 
       drafts.forEach((d, i) => {
