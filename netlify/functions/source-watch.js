@@ -117,6 +117,7 @@ async function runSourceWatch() {
     }
   }
 
+  console.log("source-watch result", { checked, changed, draftsCreated, results });
   return { checked, changed, draftsCreated, results };
 }
 
@@ -276,7 +277,27 @@ async function setDocument(collectionName, id, data) {
 }
 
 async function updateSource(id, data) {
-  return await setDocument("kilder", id, data);
+  const clean = {
+    ...data,
+    oppdatertAt: new Date().toISOString()
+  };
+
+  const fields = Object.keys(clean);
+  const updateMask = fields
+    .map(field => `updateMask.fieldPaths=${encodeURIComponent(field)}`)
+    .join("&");
+
+  const url = `${FIRESTORE_BASE}/kilder/${id}?key=${API_KEY}&${updateMask}`;
+
+  const res = await fetch(url, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ fields: toFirestoreFields(clean) })
+  });
+
+  if (!res.ok) throw new Error(`Firestore kilde-oppdatering feilet ${res.status}: ${await res.text()}`);
+
+  return await res.json();
 }
 
 function toFirestoreFields(obj) {

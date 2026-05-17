@@ -49,6 +49,27 @@ document.addEventListener("DOMContentLoaded", () => {
     renderAll();
   });
 
+
+  const draftsQuery = query(
+    collection(db, COLLECTIONS.kladder),
+    orderBy("oppdatertAt", "desc")
+  );
+
+  onSnapshot(draftsQuery, (snapshot) => {
+    const firebaseDrafts = [];
+
+    snapshot.forEach((docSnap) => {
+      firebaseDrafts.push(normalizeStory({
+        firebaseId: docSnap.id,
+        ...docSnap.data()
+      }));
+    });
+
+    drafts = firebaseDrafts;
+    save();
+    renderAll();
+  });
+
   const tipsQuery = query(
     collection(db, COLLECTIONS.tips),
     orderBy("createdAt", "desc")
@@ -382,6 +403,16 @@ document.addEventListener("DOMContentLoaded", () => {
       status: "til_godkjenning",
       oppdatertAt: serverTimestamp()
     }, { merge: true });
+  }
+
+
+  async function deleteDraftFromFirebase(story){
+    const cleanStory = normalizeStory(story);
+    const id = cleanStory.id || cleanStory.firebaseId;
+
+    if(!id) return;
+
+    await deleteDoc(doc(db, COLLECTIONS.kladder, id));
   }
 
   async function deleteStoryFromFirebase(story){
@@ -1033,6 +1064,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
       try{
         await saveStoryToFirebase(story);
+        await deleteDraftFromFirebase(story);
       }catch(err){
         console.error("Publiserings-feil:", err);
       }
@@ -1047,10 +1079,18 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   if(exists("deleteDraft")){
-    $("deleteDraft").addEventListener("click", () => {
+    $("deleteDraft").addEventListener("click", async () => {
       if(activeDraftIndex === null) return;
 
       if(confirm("Slette kladden?")){
+        const story = drafts[activeDraftIndex];
+
+        try{
+          await deleteDraftFromFirebase(story);
+        }catch(err){
+          console.error("Kunne ikke slette kladd fra Firebase:", err);
+        }
+
         drafts.splice(activeDraftIndex, 1);
         activeDraftIndex = null;
 
