@@ -16,7 +16,9 @@ box-sizing:border-box
 }
 
 html{
-scroll-behavior:smooth
+scroll-behavior:smooth;
+overflow-x:hidden;
+color-scheme:light
 }
 
 body{
@@ -32,6 +34,13 @@ overflow-x:hidden
 
 body.modal-open{
 overflow:hidden
+}
+
+body.modal-open .chips,
+body.modal-open .moreWrap,
+body.modal-open .moreMenu{
+z-index:1;
+pointer-events:none
 }
 
 button{
@@ -360,7 +369,7 @@ font-size:14px
 
 .sections{
 display:grid;
-grid-template-columns:1fr 1fr 1fr;
+grid-template-columns:repeat(3,1fr);
 gap:22px;
 margin-top:28px;
 align-items:stretch
@@ -416,11 +425,12 @@ color:#c9bdab
 display:none;
 position:fixed;
 inset:0;
-background:rgba(0,0,0,.72);
-z-index:20;
+background:rgba(0,0,0,.76);
+z-index:999999;
 align-items:center;
 justify-content:center;
-padding:24px
+padding:24px;
+pointer-events:auto
 }
 
 .modal.open{
@@ -437,7 +447,8 @@ background:var(--paper2);
 color:var(--ink);
 border-radius:38px;
 padding:34px 28px 28px;
-box-shadow:0 26px 90px rgba(0,0,0,.48)
+box-shadow:0 26px 90px rgba(0,0,0,.48);
+z-index:1000000
 }
 
 .sheet::-webkit-scrollbar{
@@ -448,13 +459,13 @@ display:none
 position:sticky;
 top:0;
 float:right;
-z-index:3;
+z-index:1000001;
 border:0;
 background:#17130f;
 color:white;
-padding:9px 13px;
+padding:10px 14px;
 border-radius:999px;
-font-weight:850;
+font-weight:900;
 margin-left:14px;
 margin-bottom:12px
 }
@@ -492,6 +503,54 @@ max-height:360px;
 object-fit:cover;
 border-radius:26px;
 background:#111
+}
+
+.tipsForm{
+clear:both;
+display:grid;
+gap:14px;
+margin-top:24px
+}
+
+.tipsForm label{
+font-size:13px;
+font-weight:900;
+color:#5d5143
+}
+
+.tipsForm input,
+.tipsForm textarea{
+width:100%;
+border:1px solid rgba(0,0,0,.12);
+background:#fff;
+color:var(--ink);
+border-radius:18px;
+padding:15px 16px;
+font:inherit;
+font-size:16px;
+outline:none
+}
+
+.tipsForm textarea{
+min-height:150px;
+resize:vertical;
+line-height:1.5
+}
+
+.tipsForm input:focus,
+.tipsForm textarea:focus{
+border-color:var(--accent);
+box-shadow:0 0 0 4px rgba(230,165,36,.18)
+}
+
+.tipsForm .read{
+width:max-content;
+margin-top:4px
+}
+
+.tipsForm .read:disabled{
+opacity:.65;
+cursor:not-allowed
 }
 
 .articleMeta{
@@ -599,69 +658,265 @@ font-size:18px
 
 @media(max-width:860px){
 
+body{
+background:
+radial-gradient(circle at 10% -5%,rgba(230,165,36,.20),transparent 36%),
+radial-gradient(circle at 100% 0%,rgba(200,59,49,.14),transparent 32%),
+#18110c
+}
+
+.app{
+width:100%;
+max-width:none;
+padding:18px 14px 34px;
+overflow:hidden
+}
+
 .top{
-align-items:flex-start
+display:block;
+margin-bottom:18px
+}
+
+.brand{
+font-size:29px;
+letter-spacing:-1.5px
+}
+
+.tagline{
+font-size:13px;
+line-height:1.35;
+color:#c8baaa
 }
 
 .topRight{
 display:none
 }
 
-.heroGrid,
-.sections{
-grid-template-columns:1fr
+.chips{
+width:100%;
+display:flex;
+gap:10px;
+overflow-x:auto;
+overflow-y:visible;
+padding:0 0 18px;
+scroll-snap-type:x proximity;
+-webkit-overflow-scrolling:touch;
+z-index:50
+}
+
+.chip{
+font-size:14px;
+padding:12px 17px;
+flex:0 0 auto;
+scroll-snap-align:start;
+background:rgba(255,255,255,.075);
+border-color:rgba(255,255,255,.18);
+color:#f1e6d6
+}
+
+.moreWrap{
+position:static;
+flex:0 0 auto;
+z-index:60
+}
+
+.moreMenu{
+position:fixed;
+top:122px;
+left:auto;
+right:14px;
+width:min(230px,calc(100vw - 28px));
+min-width:0;
+max-height:62vh;
+overflow:auto;
+border-radius:24px;
+z-index:99999
+}
+
+.moreMenu button{
+font-size:15px;
+padding:13px 15px
+}
+
+.heroGrid{
+display:block
+}
+
+.sliderWrap{
+width:100%;
+overflow:hidden
 }
 
 .slider{
+width:100%;
+display:flex;
+gap:0!important;
 overflow-x:auto!important;
-gap:16px!important;
 scroll-snap-type:x mandatory;
-padding-bottom:6px
+padding-bottom:4px;
+-webkit-overflow-scrolling:touch
 }
 
 .hero{
-height:560px;
-border-radius:32px;
-min-width:94%!important;
-scroll-snap-align:start
+height:430px;
+min-width:100%!important;
+width:100%!important;
+border-radius:30px;
+box-shadow:0 18px 55px rgba(0,0,0,.34)
 }
 
 .heroContent{
-left:18px;
-right:18px;
-bottom:18px;
-max-width:unset;
-padding:19px;
-border-radius:27px
+left:16px;
+right:16px;
+bottom:16px;
+padding:18px;
+border-radius:25px;
+max-width:none;
+background:rgba(21,15,10,.72)
 }
 
-h1{
-font-size:40px
+.heroContent .kicker{
+font-size:11px
+}
+
+.heroContent h1{
+font-size:36px;
+line-height:1;
+letter-spacing:-1.8px;
+margin:9px 0 10px
 }
 
 .lead{
-font-size:16px
+font-size:15px;
+line-height:1.42;
+color:#f0e4d2
+}
+
+.read{
+padding:12px 16px;
+font-size:14px;
+margin-top:14px
 }
 
 .sliderControls{
 justify-content:center;
-padding-top:14px
+padding:12px 0 8px
 }
 
 .sliderControls button{
 display:none
 }
 
+.dots{
+justify-content:center
+}
+
+.side{
+margin-top:16px
+}
+
+.panel{
+border-radius:28px;
+padding:18px 18px 8px;
+background:rgba(35,26,19,.88);
+border-color:rgba(255,255,255,.16)
+}
+
+.panel h2{
+font-size:25px;
+line-height:1.05;
+margin:8px 0 18px
+}
+
+.item{
+padding:14px 0
+}
+
+.item h3{
+font-size:21px;
+line-height:1.18
+}
+
+.item p{
+font-size:15px;
+color:#d8cab8
+}
+
+.sections{
+display:grid;
+grid-template-columns:1fr;
+gap:16px;
+margin-top:18px
+}
+
+.card{
+border-radius:28px
+}
+
+.cardImage{
+height:175px
+}
+
+.cardBody{
+padding:18px 18px 20px
+}
+
+.card h3{
+font-size:27px;
+line-height:1.05
+}
+
+.card p{
+font-size:15px
+}
+
 .modal{
 align-items:flex-end;
-padding:10px 0 0
+padding:0;
+z-index:999999
 }
 
 .sheet{
-border-radius:30px 30px 0 0;
-padding:30px 20px 22px;
 width:100%;
-max-height:88vh
+max-height:92vh;
+border-radius:30px 30px 0 0;
+padding:24px 18px 22px
+}
+
+.sheet h1{
+font-size:34px;
+line-height:1.02;
+letter-spacing:-1.6px
+}
+
+.sheet p{
+font-size:16px;
+line-height:1.55
+}
+
+.close{
+top:0;
+padding:10px 14px
+}
+
+.modalMedia img,
+.modalMedia video{
+max-height:300px;
+border-radius:22px
+}
+
+.tipsForm{
+gap:12px
+}
+
+.tipsForm input,
+.tipsForm textarea{
+font-size:16px;
+padding:15px
+}
+
+.tipsForm textarea{
+min-height:135px
 }
 
 .partnerBody{
@@ -680,14 +935,904 @@ display:block
 margin-bottom:10px
 }
 
+.cardImage{
+height:165px
+}
+
+}
+
+@media(max-width:420px){
+
+.app{
+padding-left:12px;
+padding-right:12px
+}
+
+.brand{
+font-size:28px
+}
+
+.chip{
+font-size:14px;
+padding:11px 15px
+}
+
 .moreMenu{
-left:0;
-right:auto;
-min-width:210px
+top:118px;
+right:12px;
+width:calc(100vw - 24px)
+}
+
+.hero{
+height:405px;
+border-radius:28px
+}
+
+.heroContent{
+left:14px;
+right:14px;
+bottom:14px;
+padding:16px;
+border-radius:23px
+}
+
+.heroContent h1{
+font-size:32px
+}
+
+.lead{
+font-size:14px
+}
+
+.panel{
+border-radius:26px
+}
+
+.card h3{
+font-size:25px
 }
 
 .cardImage{
-height:105px
+height:150px
+}
+
+.sheet h1{
+font-size:31px
+}
+
+}
+
+/* LIVEKORT V2 – Politilogg, vær og trafikk */
+
+.liveRow{
+display:grid;
+grid-template-columns:repeat(3,1fr);
+gap:16px;
+margin-top:22px
+}
+
+.liveCard{
+text-decoration:none;
+background:rgba(24,21,17,.82);
+border:1px solid var(--line);
+border-radius:28px;
+padding:16px;
+backdrop-filter:blur(16px);
+box-shadow:0 16px 50px rgba(0,0,0,.24);
+transition:.18s;
+min-height:188px;
+color:var(--text);
+display:flex;
+flex-direction:column;
+overflow:hidden
+}
+
+.liveCard:hover{
+transform:translateY(-3px);
+border-color:rgba(255,255,255,.24);
+background:rgba(30,26,21,.88)
+}
+
+.liveTop{
+display:flex;
+justify-content:space-between;
+align-items:flex-start;
+gap:12px;
+margin-bottom:11px
+}
+
+.liveTop h3{
+margin:4px 0 0;
+font-size:23px;
+line-height:1;
+letter-spacing:-1px
+}
+
+.liveBadge{
+background:rgba(255,255,255,.08);
+border:1px solid rgba(255,255,255,.08);
+padding:6px 10px;
+border-radius:999px;
+font-size:11px;
+font-weight:950;
+color:#ddd2c0;
+line-height:1
+}
+
+.liveBadge.red{
+background:rgba(200,59,49,.18);
+color:#ffb7b0
+}
+
+.liveFeed{
+display:grid;
+gap:8px
+}
+
+.liveItem{
+padding-top:9px;
+border-top:1px solid rgba(255,255,255,.08)
+}
+
+.liveItem small{
+display:block;
+font-size:10.5px;
+font-weight:950;
+letter-spacing:.08em;
+color:var(--muted);
+margin-bottom:4px;
+text-transform:uppercase
+}
+
+.liveItem p{
+margin:0;
+font-size:13px;
+line-height:1.35;
+color:#f1e7d8
+}
+
+.liveItem.compact{
+padding-top:8px
+}
+
+.weatherNow{
+display:flex;
+align-items:flex-end;
+gap:16px;
+margin-top:auto
+}
+
+.temp{
+font-size:54px;
+font-weight:950;
+line-height:.88;
+letter-spacing:-3px;
+color:#fff8eb
+}
+
+.weatherMeta{
+padding-bottom:4px;
+display:grid;
+gap:4px
+}
+
+.weatherMeta div{
+font-size:14.5px;
+color:#efe3d0;
+font-weight:800
+}
+
+.weatherMeta small{
+display:block;
+color:var(--muted);
+font-size:12px;
+font-weight:800
+}
+
+@media(max-width:860px){
+
+.liveRow{
+display:flex;
+overflow-x:auto;
+gap:14px;
+padding-bottom:6px;
+margin-top:18px;
+scroll-snap-type:x proximity;
+-webkit-overflow-scrolling:touch
+}
+
+.liveRow::-webkit-scrollbar{
+display:none
+}
+
+.liveCard{
+min-width:84%;
+flex:0 0 auto;
+scroll-snap-align:start;
+min-height:180px;
+border-radius:26px
+}
+
+.liveTop h3{
+font-size:24px
+}
+
+.temp{
+font-size:50px
+}
+
+}
+
+@media(max-width:420px){
+
+.liveCard{
+min-width:88%;
+padding:15px
+}
+
+.liveTop h3{
+font-size:22px
+}
+
+.temp{
+font-size:46px
+}
+
+}
+
+
+@media(max-width:1100px) and (min-width:861px){
+
+.liveRow{
+grid-template-columns:1fr 1fr
+}
+
+}
+
+
+/* LIVEKORT V4 – værikon, dynamisk trafikk og VM-nedtelling */
+
+.weatherIcon{
+font-size:38px;
+line-height:1;
+margin-right:-6px;
+filter:drop-shadow(0 8px 18px rgba(0,0,0,.35))
+}
+
+.sportCountdown{
+display:flex;
+align-items:flex-end;
+gap:13px;
+margin-top:auto;
+padding-top:10px;
+border-top:1px solid rgba(255,255,255,.08)
+}
+
+.countNumber{
+font-size:52px;
+font-weight:950;
+line-height:.85;
+letter-spacing:-3px;
+color:#fff8eb
+}
+
+.countText{
+display:grid;
+gap:4px;
+padding-bottom:3px
+}
+
+.countText b{
+font-size:14px;
+color:#efe3d0
+}
+
+.countText span{
+font-size:12px;
+font-weight:800;
+color:var(--muted)
+}
+
+.sportMini{
+margin-top:10px
+}
+
+.trafficHidden{
+display:none
+}
+
+.liveRow.hasTraffic .trafficHidden{
+display:flex
+}
+
+.liveRow.hasTraffic{
+grid-template-columns:repeat(4,1fr)
+}
+
+@media(max-width:1100px) and (min-width:861px){
+
+.liveRow,
+.liveRow.hasTraffic{
+grid-template-columns:1fr 1fr
+}
+
+}
+
+@media(max-width:860px){
+
+.weatherIcon{
+font-size:34px
+}
+
+.countNumber{
+font-size:48px
+}
+
+}
+
+@media(max-width:420px){
+
+.weatherIcon{
+font-size:31px
+}
+
+.countNumber{
+font-size:44px
+}
+
+}
+
+
+/* LIVEKORT V5 */
+
+.weatherStats{
+display:grid;
+grid-template-columns:1fr 1fr;
+gap:8px;
+margin-top:10px
+}
+
+.weatherStat{
+padding:8px 10px;
+border-radius:12px;
+background:rgba(255,255,255,.05);
+border:1px solid rgba(255,255,255,.05)
+}
+
+.weatherStat span{
+display:block;
+font-size:11px;
+font-weight:700;
+color:var(--muted);
+margin-bottom:2px
+}
+
+.weatherStat b{
+font-size:13px;
+color:#fff6eb
+}
+
+.liveItem p{
+line-height:1.35
+}
+
+#politilogg-feed .liveItem{
+padding:10px 0
+}
+
+
+/* LIVEKORT V6 – nytt værkort, vertikal info */
+
+.weatherCard{
+min-height:210px
+}
+
+.weatherNow{
+display:flex;
+align-items:flex-start;
+justify-content:space-between;
+gap:18px;
+margin-top:auto
+}
+
+.weatherMain{
+display:flex;
+align-items:center;
+gap:14px;
+min-width:0
+}
+
+.weatherIcon{
+font-size:64px;
+line-height:1;
+margin:0;
+filter:drop-shadow(0 8px 18px rgba(0,0,0,.35))
+}
+
+.weatherTempWrap{
+display:grid;
+gap:5px
+}
+
+.temp{
+font-size:68px;
+font-weight:950;
+line-height:.86;
+letter-spacing:-4px;
+color:#fff8eb
+}
+
+.weatherFeels{
+font-size:15px;
+font-weight:850;
+color:#d9cdbd;
+white-space:nowrap
+}
+
+.weatherStack{
+display:grid;
+gap:8px;
+min-width:160px;
+padding-top:2px
+}
+
+.weatherLine{
+display:grid;
+grid-template-columns:28px 1fr auto;
+align-items:center;
+gap:8px;
+padding:7px 9px;
+border-radius:14px;
+background:rgba(255,255,255,.055);
+border:1px solid rgba(255,255,255,.06);
+color:#efe3d0
+}
+
+.weatherLineIcon{
+font-size:19px;
+line-height:1;
+text-align:center
+}
+
+.weatherLine span:not(.weatherLineIcon){
+font-size:13px;
+font-weight:800;
+color:#cfc2b2
+}
+
+.weatherLine b{
+font-size:14px;
+font-weight:950;
+color:#fff8eb;
+white-space:nowrap
+}
+
+@media(max-width:860px){
+
+.weatherCard{
+min-height:230px
+}
+
+.weatherNow{
+flex-direction:column;
+gap:14px
+}
+
+.weatherIcon{
+font-size:58px
+}
+
+.temp{
+font-size:62px
+}
+
+.weatherStack{
+width:100%;
+min-width:0
+}
+
+.weatherLine{
+grid-template-columns:30px 1fr auto;
+padding:9px 10px
+}
+
+.weatherLine span:not(.weatherLineIcon),
+.weatherLine b{
+font-size:15px
+}
+
+}
+
+@media(max-width:420px){
+
+.weatherIcon{
+font-size:52px
+}
+
+.temp{
+font-size:56px
+}
+
+.weatherFeels{
+font-size:14px
+}
+
+}
+
+
+/* LIVEKORT V7 – værinfo uten småsymboler */
+
+.weatherStack{
+min-width:172px;
+gap:9px
+}
+
+.weatherLine{
+display:grid;
+grid-template-columns:1fr auto;
+gap:12px;
+padding:9px 11px
+}
+
+.weatherLineIcon{
+display:none
+}
+
+.weatherLine span:not(.weatherLineIcon){
+font-size:14px;
+font-weight:850
+}
+
+.weatherLine b{
+font-size:15px
+}
+
+@media(max-width:860px){
+
+.weatherLine{
+padding:10px 12px
+}
+
+.weatherLine span:not(.weatherLineIcon),
+.weatherLine b{
+font-size:16px
+}
+
+}
+
+
+/* LIVEKORT V8 – bedre avstand i værkort */
+
+.weatherNow{
+display:grid;
+grid-template-columns:minmax(0, 1fr) 185px;
+align-items:center;
+gap:30px
+}
+
+.weatherMain{
+min-width:0;
+padding-right:4px
+}
+
+.weatherStack{
+width:185px;
+min-width:185px
+}
+
+.weatherLine{
+width:100%
+}
+
+@media(max-width:1100px) and (min-width:861px){
+
+.weatherNow{
+grid-template-columns:1fr;
+gap:16px
+}
+
+.weatherStack{
+width:100%;
+min-width:0
+}
+
+}
+
+@media(max-width:860px){
+
+.weatherNow{
+display:grid;
+grid-template-columns:1fr;
+gap:16px
+}
+
+.weatherStack{
+width:100%;
+min-width:0
+}
+
+}
+
+@media(max-width:420px){
+
+.weatherNow{
+gap:14px
+}
+
+.weatherMain{
+gap:12px;
+padding-right:0
+}
+
+.temp{
+font-size:52px
+}
+
+}
+
+
+/* LIVEKORT V9 – endelig værkortlayout */
+
+.weatherCard{
+min-height:224px
+}
+
+.weatherCard .liveTop{
+margin-bottom:14px
+}
+
+.weatherNow{
+display:grid !important;
+grid-template-columns:minmax(0, 1fr) 235px !important;
+align-items:center !important;
+gap:26px !important;
+margin-top:auto !important
+}
+
+.weatherMain{
+display:flex !important;
+align-items:center !important;
+gap:18px !important;
+min-width:0 !important;
+padding-right:0 !important
+}
+
+.weatherIcon{
+font-size:66px !important;
+line-height:1 !important;
+margin:0 !important;
+flex:0 0 auto !important;
+filter:drop-shadow(0 8px 18px rgba(0,0,0,.35)) !important
+}
+
+.weatherTempWrap{
+display:grid !important;
+gap:5px !important;
+min-width:0 !important
+}
+
+.temp{
+font-size:70px !important;
+font-weight:950 !important;
+line-height:.86 !important;
+letter-spacing:-4px !important;
+color:#fff8eb !important
+}
+
+.weatherFeels{
+font-size:15px !important;
+font-weight:850 !important;
+color:#d9cdbd !important;
+white-space:nowrap !important
+}
+
+.weatherStack{
+width:100% !important;
+min-width:0 !important;
+display:grid !important;
+gap:0 !important;
+border-left:1px solid rgba(255,255,255,.13) !important;
+padding-left:22px !important
+}
+
+.weatherLine{
+display:grid !important;
+grid-template-columns:1fr auto !important;
+align-items:center !important;
+gap:14px !important;
+width:100% !important;
+padding:9px 0 !important;
+border-radius:0 !important;
+background:transparent !important;
+border:0 !important;
+border-bottom:1px solid rgba(255,255,255,.11) !important;
+color:#efe3d0 !important
+}
+
+.weatherLine:last-child{
+border-bottom:0 !important
+}
+
+.weatherLineIcon{
+display:none !important
+}
+
+.weatherLine span:not(.weatherLineIcon){
+font-size:15px !important;
+font-weight:750 !important;
+color:#e1d6c7 !important
+}
+
+.weatherLine b{
+font-size:16px !important;
+font-weight:950 !important;
+color:#fff8eb !important;
+white-space:nowrap !important
+}
+
+@media(max-width:1100px) and (min-width:861px){
+
+.weatherCard{
+min-height:252px
+}
+
+.weatherNow{
+grid-template-columns:1fr !important;
+gap:16px !important
+}
+
+.weatherStack{
+border-left:0 !important;
+border-top:1px solid rgba(255,255,255,.13) !important;
+padding-left:0 !important;
+padding-top:8px !important
+}
+
+}
+
+@media(max-width:860px){
+
+.weatherCard{
+min-height:260px
+}
+
+.weatherNow{
+grid-template-columns:1fr !important;
+gap:16px !important
+}
+
+.weatherMain{
+gap:16px !important
+}
+
+.weatherIcon{
+font-size:58px !important
+}
+
+.temp{
+font-size:62px !important
+}
+
+.weatherStack{
+border-left:0 !important;
+border-top:1px solid rgba(255,255,255,.13) !important;
+padding-left:0 !important;
+padding-top:8px !important
+}
+
+.weatherLine{
+padding:10px 0 !important
+}
+
+.weatherLine span:not(.weatherLineIcon),
+.weatherLine b{
+font-size:16px !important
+}
+
+}
+
+@media(max-width:420px){
+
+.weatherCard{
+min-height:250px
+}
+
+.weatherMain{
+gap:12px !important
+}
+
+.weatherIcon{
+font-size:52px !important
+}
+
+.temp{
+font-size:56px !important
+}
+
+.weatherFeels{
+font-size:14px !important
+}
+
+}
+
+
+/* LIVEKORT V10 – kompakt premium værkort */
+
+.weatherCard{
+min-height:210px !important
+}
+
+.weatherNow{
+display:grid !important;
+grid-template-columns:minmax(0,1fr) 180px !important;
+align-items:center !important;
+gap:18px !important
+}
+
+.weatherMain{
+display:flex !important;
+align-items:center !important;
+gap:12px !important
+}
+
+.weatherIcon{
+font-size:52px !important;
+flex:0 0 auto !important
+}
+
+.temp{
+font-size:56px !important;
+line-height:.9 !important;
+letter-spacing:-3px !important
+}
+
+.weatherFeels{
+font-size:13px !important;
+margin-top:-2px !important
+}
+
+.weatherStack{
+padding-left:16px !important;
+border-left:1px solid rgba(255,255,255,.1) !important
+}
+
+.weatherLine{
+padding:7px 0 !important;
+gap:10px !important
+}
+
+.weatherLine span{
+font-size:13px !important
+}
+
+.weatherLine b{
+font-size:14px !important
+}
+
+@media(max-width:1100px){
+
+.weatherNow{
+grid-template-columns:1fr !important;
+gap:14px !important
+}
+
+.weatherStack{
+border-left:0 !important;
+border-top:1px solid rgba(255,255,255,.1) !important;
+padding-left:0 !important;
+padding-top:8px !important
+}
+
+}
+
+@media(max-width:420px){
+
+.weatherIcon{
+font-size:46px !important
+}
+
+.temp{
+font-size:50px !important
 }
 
 }

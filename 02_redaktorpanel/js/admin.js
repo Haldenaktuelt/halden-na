@@ -3,6 +3,10 @@ import {
   collection,
   doc,
   setDoc,
+  deleteDoc,
+  query,
+  orderBy,
+  onSnapshot,
   serverTimestamp,
   COLLECTIONS
 } from "../../00_firebase/firebase-db.js";
@@ -15,10 +19,95 @@ document.addEventListener("DOMContentLoaded", () => {
   let drafts = JSON.parse(localStorage.getItem("hn_drafts") || "[]");
   let partners = JSON.parse(localStorage.getItem("hn_partners") || "null") || defaultPartners;
   let sources = JSON.parse(localStorage.getItem("hn_sources") || "[]");
+  let tips = [];
   let activeDraftIndex = null;
 
   const $ = (id) => document.getElementById(id);
   const exists = (id) => !!$(id);
+
+  const publishedQuery = query(
+    collection(db, COLLECTIONS.saker),
+    orderBy("oppdatertAt", "desc")
+  );
+
+  onSnapshot(publishedQuery, (snapshot) => {
+    const firebasePublished = [];
+
+    snapshot.forEach((docSnap) => {
+      const data = docSnap.data();
+
+      if(data.status === "publisert"){
+        firebasePublished.push({
+          firebaseId: docSnap.id,
+          ...data
+        });
+      }
+    });
+
+    published = firebasePublished;
+    save();
+    renderAll();
+  });
+
+  const tipsQuery = query(
+    collection(db, COLLECTIONS.tips),
+    orderBy("createdAt", "desc")
+  );
+
+  onSnapshot(tipsQuery, (snapshot) => {
+    tips = [];
+
+    snapshot.forEach((docSnap) => {
+      tips.push({
+        id: docSnap.id,
+        ...docSnap.data()
+      });
+    });
+
+    renderAll();
+  });
+
+  const partnersQuery = query(
+    collection(db, COLLECTIONS.partnere),
+    orderBy("oppdatertAt", "desc")
+  );
+
+  onSnapshot(partnersQuery, (snapshot) => {
+    const firebasePartners = [];
+
+    snapshot.forEach((docSnap) => {
+      firebasePartners.push({
+        firebaseId: docSnap.id,
+        ...docSnap.data()
+      });
+    });
+
+    partners = firebasePartners;
+    save();
+    renderAll();
+  });
+
+
+  const sourcesQuery = query(
+    collection(db, COLLECTIONS.kilder),
+    orderBy("oppdatertAt", "desc")
+  );
+
+  onSnapshot(sourcesQuery, (snapshot) => {
+    const firebaseSources = [];
+
+    snapshot.forEach((docSnap) => {
+      firebaseSources.push({
+        firebaseId: docSnap.id,
+        id: docSnap.id,
+        ...docSnap.data()
+      });
+    });
+
+    sources = firebaseSources;
+    save();
+    renderAll();
+  });
 
   function save(){
     localStorage.setItem("hn_published", JSON.stringify(published));
@@ -35,18 +124,36 @@ document.addEventListener("DOMContentLoaded", () => {
     return new Date().toISOString();
   }
 
+  function formatDate(value){
+    if(!value) return "";
+
+    if(value.toDate){
+      const d = value.toDate();
+      return d.toLocaleString("no-NO", {
+        day:"2-digit",
+        month:"2-digit",
+        year:"numeric",
+        hour:"2-digit",
+        minute:"2-digit"
+      });
+    }
+
+    const d = new Date(value);
+    if(isNaN(d.getTime())) return "";
+
+    return d.toLocaleString("no-NO", {
+      day:"2-digit",
+      month:"2-digit",
+      year:"numeric",
+      hour:"2-digit",
+      minute:"2-digit"
+    });
+  }
+
   function localDateTimeToIso(value){
     if(!value) return nowIso();
     const d = new Date(value);
     return isNaN(d.getTime()) ? nowIso() : d.toISOString();
-  }
-
-  function isoToLocalDateTime(value){
-    if(!value) return "";
-    const d = new Date(value);
-    if(isNaN(d.getTime())) return "";
-    const pad = (n) => String(n).padStart(2, "0");
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
   }
 
   function makeId(prefix){
@@ -55,6 +162,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function normalizeStoryId(story){
     if(story.id) return story.id;
+    if(story.firebaseId) return story.firebaseId;
     return makeId("sak");
   }
 
@@ -113,6 +221,54 @@ document.addEventListener("DOMContentLoaded", () => {
     };
   }
 
+  function normalizeTip(tip){
+    return {
+      id: tip.id || "",
+      title: tip.title || "",
+      place: tip.place || "",
+      text: tip.text || "",
+      image: tip.image || "",
+      name: tip.name || "",
+      contact: tip.contact || "",
+      createdAt: tip.createdAt || ""
+    };
+  }
+
+  function normalizePartner(partner){
+    return {
+      id: partner.id || partner.firebaseId || makeId("partner"),
+      firebaseId: partner.firebaseId || partner.id || "",
+      navn: partner.navn || "Lokal partner",
+      logoTekst: partner.logoTekst || "LOGO",
+      logoUrl: partner.logoUrl || "",
+      tekst: partner.tekst || "",
+      url: partner.url || "",
+      niva: partner.niva || "partner",
+      size: partner.size || "small",
+      start: partner.start || "",
+      slutt: partner.slutt || "",
+      aktiv: partner.aktiv !== false
+    };
+  }
+
+
+  function normalizeSource(source){
+    return {
+      id: source.id || source.firebaseId || makeId("source"),
+      firebaseId: source.firebaseId || source.id || "",
+      name: source.name || "Uten navn",
+      kind: source.kind || "URL",
+      link: source.link || "",
+      instruction: source.instruction || "",
+      frequency: source.frequency || "Daglig",
+      active: source.active !== false,
+      lastHash: source.lastHash || "",
+      lastChecked: source.lastChecked || "",
+      lastResult: source.lastResult || "",
+      lastDraftId: source.lastDraftId || ""
+    };
+  }
+
   function readNewStoryForm(){
     const kategori = categoryFromType(value("sourceType", "Lokalt"));
     const tittel = value("newTitle", "").trim();
@@ -142,6 +298,34 @@ document.addEventListener("DOMContentLoaded", () => {
       tid: nowTime(),
       hovedsak: checked("mainStory"),
       rawInput: raw
+    });
+  }
+
+  function storyFromTip(tip){
+    const t = normalizeTip(tip);
+
+    const textParts = [];
+
+    if(t.text) textParts.push(t.text);
+    if(t.place) textParts.push(`\nSted: ${t.place}`);
+    if(t.name || t.contact) textParts.push(`\nTipskontakt: ${[t.name, t.contact].filter(Boolean).join(" · ")}`);
+
+    return normalizeStory({
+      id: makeId("sak"),
+      kategori: "Tips",
+      tittel: t.title || "Tips fra leser",
+      ingress: t.place ? `Tips fra ${t.place}` : "Tips sendt inn fra leser.",
+      tekst: textParts.join("\n"),
+      bildeUrl: t.image || "",
+      videoUrl: "",
+      mediaPlassering: "top",
+      kilde: "Tips fra leser",
+      sourceUrl: "",
+      status: "til_godkjenning",
+      dato: nowIso(),
+      tid: nowTime(),
+      hovedsak: false,
+      originalTipId: t.id
     });
   }
 
@@ -181,22 +365,73 @@ document.addEventListener("DOMContentLoaded", () => {
 
   async function saveStoryToFirebase(story){
     const cleanStory = normalizeStory(story);
-    cleanStory.status = cleanStory.status || "publisert";
+    const id = cleanStory.id;
 
-    await setDoc(doc(db, COLLECTIONS.saker, cleanStory.id), {
+    await setDoc(doc(db, COLLECTIONS.saker, id), {
       ...cleanStory,
+      status: cleanStory.status || "publisert",
       oppdatertAt: serverTimestamp()
     }, { merge: true });
   }
 
   async function saveDraftToFirebase(story){
     const cleanStory = normalizeStory(story);
-    cleanStory.status = cleanStory.status || "til_godkjenning";
 
     await setDoc(doc(db, COLLECTIONS.kladder, cleanStory.id), {
       ...cleanStory,
+      status: "til_godkjenning",
       oppdatertAt: serverTimestamp()
     }, { merge: true });
+  }
+
+  async function deleteStoryFromFirebase(story){
+    const cleanStory = normalizeStory(story);
+    const id = cleanStory.id || cleanStory.firebaseId;
+
+    if(!id) return;
+
+    await deleteDoc(doc(db, COLLECTIONS.saker, id));
+  }
+
+  async function savePartnerToFirebase(partner){
+    const cleanPartner = normalizePartner(partner);
+
+    await setDoc(doc(db, COLLECTIONS.partnere, cleanPartner.id), {
+      ...cleanPartner,
+      oppdatertAt: serverTimestamp()
+    }, { merge: true });
+  }
+
+  async function deletePartnerFromFirebase(partner){
+    const p = normalizePartner(partner);
+    const id = p.id || p.firebaseId;
+
+    if(!id) return;
+
+    await deleteDoc(doc(db, COLLECTIONS.partnere, id));
+  }
+
+
+  async function saveSourceToFirebase(source){
+    const cleanSource = normalizeSource(source);
+
+    await setDoc(doc(db, COLLECTIONS.kilder, cleanSource.id), {
+      ...cleanSource,
+      oppdatertAt: serverTimestamp()
+    }, { merge: true });
+  }
+
+  async function deleteSourceFromFirebase(source){
+    const s = normalizeSource(source);
+    const id = s.id || s.firebaseId;
+
+    if(!id) return;
+
+    await deleteDoc(doc(db, COLLECTIONS.kilder, id));
+  }
+
+  async function deleteTip(tipId){
+    await deleteDoc(doc(db, COLLECTIONS.tips, tipId));
   }
 
   function renderLists(){
@@ -234,6 +469,7 @@ document.addEventListener("DOMContentLoaded", () => {
           <p>${escapeText(story.ingress)}</p>
           <div class="itemActions">
             <button type="button" class="warn" data-unpublish="${i}">Trekk tilbake</button>
+            <button type="button" class="danger" data-delete-published="${i}">Slett helt</button>
           </div>
         `;
         $("publishedList").appendChild(item);
@@ -244,15 +480,14 @@ document.addEventListener("DOMContentLoaded", () => {
           e.stopPropagation();
 
           const index = Number(btn.dataset.unpublish);
-          const story = normalizeStory(published.splice(index, 1)[0]);
+          const story = normalizeStory(published[index]);
 
           story.status = "til_godkjenning";
           drafts.unshift(story);
 
           try{
             await saveDraftToFirebase(story);
-            await saveStoryToFirebase(story);
-            console.log("Sak trukket tilbake uten ny ID");
+            await deleteStoryFromFirebase(story);
           }catch(err){
             console.error("Firebase-feil:", err);
           }
@@ -261,40 +496,147 @@ document.addEventListener("DOMContentLoaded", () => {
           switchTab("godkjenning");
         });
       });
+
+      document.querySelectorAll("[data-delete-published]").forEach((btn) => {
+        btn.addEventListener("click", async (e) => {
+          e.stopPropagation();
+
+          if(!confirm("Slette publisert sak helt?")) return;
+
+          const index = Number(btn.dataset.deletePublished);
+          const story = published[index];
+
+          try{
+            await deleteStoryFromFirebase(story);
+            published.splice(index, 1);
+            renderAll();
+          }catch(err){
+            console.error("Kunne ikke slette publisert sak:", err);
+          }
+        });
+      });
+    }
+
+    if(exists("tipsList")){
+      $("tipsList").innerHTML = tips.length ? "" : `<div class="previewEmpty">Ingen tips sendt inn ennå.</div>`;
+
+      tips.forEach((rawTip) => {
+        const tip = normalizeTip(rawTip);
+        const item = document.createElement("div");
+        const dato = formatDate(tip.createdAt);
+
+        item.className = "listItem";
+        item.innerHTML = `
+          <small>Nytt tips${dato ? " · " + escapeText(dato) : ""}${tip.place ? " · " + escapeText(tip.place) : ""}</small>
+          <h3>${escapeText(tip.title || "Tips uten tittel")}</h3>
+          <p>${escapeText(tip.text)}</p>
+          ${tip.image ? `<p><small>Bilde: ${escapeText(tip.image)}</small></p>` : ""}
+          ${tip.name || tip.contact ? `<p><small>Kontakt: ${escapeText([tip.name, tip.contact].filter(Boolean).join(" · "))}</small></p>` : ""}
+          <div class="itemActions">
+            <button type="button" class="primary" data-tip-draft="${escapeText(tip.id)}">Lag kladd</button>
+            <button type="button" class="danger" data-tip-delete="${escapeText(tip.id)}">Slett</button>
+          </div>
+        `;
+
+        $("tipsList").appendChild(item);
+      });
+
+      document.querySelectorAll("[data-tip-draft]").forEach((btn) => {
+        btn.addEventListener("click", async (e) => {
+          e.stopPropagation();
+
+          const tipId = btn.dataset.tipDraft;
+          const tip = tips.find(t => t.id === tipId);
+          if(!tip) return;
+
+          const story = storyFromTip(tip);
+          drafts.unshift(story);
+
+          try{
+            await saveDraftToFirebase(story);
+            await deleteTip(tipId);
+          }catch(err){
+            console.error("Kunne ikke lage kladd fra tips:", err);
+          }
+
+          renderAll();
+          switchTab("godkjenning");
+        });
+      });
+
+      document.querySelectorAll("[data-tip-delete]").forEach((btn) => {
+        btn.addEventListener("click", async (e) => {
+          e.stopPropagation();
+
+          if(!confirm("Slette tipset?")) return;
+
+          try{
+            await deleteTip(btn.dataset.tipDelete);
+          }catch(err){
+            console.error("Kunne ikke slette tips:", err);
+          }
+        });
+      });
     }
 
     if(exists("partnerList")){
       $("partnerList").innerHTML = partners.length ? "" : `<div class="previewEmpty">Ingen partnere lagt inn.</div>`;
 
-      partners.forEach((p, i) => {
+      partners.forEach((rawPartner, i) => {
+        const p = normalizePartner(rawPartner);
         const item = document.createElement("div");
         item.className = "listItem";
         item.innerHTML = `
           <small>${escapeText(p.niva)} · ${escapeText(p.size)} · ${escapeText(p.start || "")} – ${escapeText(p.slutt || "")}</small>
           <h3>${escapeText(p.navn)}</h3>
           <p>${escapeText(p.tekst)}</p>
+          <div class="itemActions">
+            <button type="button" class="danger" data-delete-partner="${i}">Slett partner</button>
+          </div>
         `;
-        item.addEventListener("dblclick", () => {
-          if(confirm("Slette partner?")){
-            partners.splice(i, 1);
+
+        $("partnerList").appendChild(item);
+      });
+
+      document.querySelectorAll("[data-delete-partner]").forEach((btn) => {
+        btn.addEventListener("click", async (e) => {
+          e.stopPropagation();
+
+          if(!confirm("Slette partner?")) return;
+
+          const index = Number(btn.dataset.deletePartner);
+          const partner = partners[index];
+
+          try{
+            await deletePartnerFromFirebase(partner);
+            partners.splice(index, 1);
             renderAll();
+          }catch(err){
+            console.error("Kunne ikke slette partner:", err);
           }
         });
-        $("partnerList").appendChild(item);
       });
     }
 
     if(exists("sourceList")){
       $("sourceList").innerHTML = sources.length ? "" : `<div class="previewEmpty">Ingen kilder lagt inn.</div>`;
 
-      sources.forEach((s, i) => {
+      sources.forEach((rawSource, i) => {
+        const s = normalizeSource(rawSource);
         const item = document.createElement("div");
+        const statusClass = s.lastChecked ? "ok" : "wait";
+        const statusText = s.lastChecked
+          ? `Sist sjekket: ${escapeText(formatDate(s.lastChecked))}`
+          : "Venter på første sjekk";
+
         item.className = "listItem";
         item.innerHTML = `
-          <small>${escapeText(s.kind)} · ${escapeText(s.frequency)}</small>
+          <small>${escapeText(s.kind)} · ${escapeText(s.frequency)} · ${s.active ? "Aktiv" : "Pause"}</small>
           <h3>${escapeText(s.name)}</h3>
           <p>${escapeText(s.link)}</p>
           <p>${escapeText(s.instruction)}</p>
+          <div class="sourceStatus ${statusClass}">${statusText}</div>
+          ${s.lastResult ? `<p><small>${escapeText(s.lastResult)}</small></p>` : ""}
           <div class="itemActions">
             <button type="button" class="warn" data-delete-source="${i}">Fjern kilde</button>
           </div>
@@ -303,10 +645,21 @@ document.addEventListener("DOMContentLoaded", () => {
       });
 
       document.querySelectorAll("[data-delete-source]").forEach((btn) => {
-        btn.addEventListener("click", (e) => {
+        btn.addEventListener("click", async (e) => {
           e.stopPropagation();
-          sources.splice(Number(btn.dataset.deleteSource), 1);
-          renderAll();
+
+          if(!confirm("Fjerne kilden fra kildevakten?")) return;
+
+          const index = Number(btn.dataset.deleteSource);
+          const source = sources[index];
+
+          try{
+            await deleteSourceFromFirebase(source);
+            sources.splice(index, 1);
+            renderAll();
+          }catch(err){
+            console.error("Kunne ikke fjerne kilde:", err);
+          }
         });
       });
     }
@@ -324,7 +677,7 @@ document.addEventListener("DOMContentLoaded", () => {
     renderExports();
 
     if(exists("status")){
-      $("status").textContent = `${drafts.length} til godkjenning · ${published.length} publisert · ${partners.length} partnere · ${sources.length} kilder`;
+      $("status").textContent = `${drafts.length} til godkjenning · ${published.length} publisert · ${tips.length} tips · ${partners.length} partnere · ${sources.length} kilder`;
     }
   }
 
@@ -400,9 +753,167 @@ document.addEventListener("DOMContentLoaded", () => {
     renderPreview("draftPreview", null);
   }
 
+
+  function setStatus(text){
+    if(exists("status")) $("status").textContent = text;
+  }
+
+  function aiDraftUrl(){
+    const local = location.hostname === "127.0.0.1" || location.hostname === "localhost";
+    return local
+      ? "http://localhost:8888/.netlify/functions/ai-draft"
+      : "/.netlify/functions/ai-draft";
+  }
+
+
+  function sourceWatchUrl(){
+    const local = location.hostname === "127.0.0.1" || location.hostname === "localhost";
+    return local
+      ? "http://localhost:8888/.netlify/functions/source-watch"
+      : "/.netlify/functions/source-watch";
+  }
+
+  async function runSourceWatchNow(){
+    const btn = $("runSourceWatch");
+    const oldText = btn ? btn.textContent : "";
+
+    try{
+      if(btn){
+        btn.disabled = true;
+        btn.textContent = "Sjekker kilder...";
+      }
+
+      setStatus("Kildevakten sjekker kilder...");
+
+      const res = await fetch(sourceWatchUrl(), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ manual: true })
+      });
+
+      const data = await res.json();
+
+      if(!res.ok || data.ok === false){
+        throw new Error(data.error || "Kildevakten feilet");
+      }
+
+      setStatus(`Kildevakt ferdig · ${data.draftsCreated || 0} kladder laget`);
+      alert(`Kildevakt ferdig.\nKladder laget: ${data.draftsCreated || 0}`);
+    }catch(err){
+      console.error("Kildevakt feilet:", err);
+      alert("Kildevakten feilet. Sjekk Netlify Functions og OPENAI_API_KEY.");
+      setStatus("Kildevakt feilet");
+    }finally{
+      if(btn){
+        btn.disabled = false;
+        btn.textContent = oldText || "Kjør kildevakt nå";
+      }
+    }
+  }
+
+  function localAiFallbackDraft(payload){
+    const raw = (payload.rawInput || payload.tekst || payload.ingress || "").trim();
+    const clean = raw.replace(/\s+/g, " ").trim();
+    const kategori = payload.kategori || "Lokalt";
+    const title = payload.tittel || (
+      kategori === "Politilogg" ? "Hendelse i Øst politidistrikt" :
+      kategori === "Kommune" ? "Kommunal sak kort forklart" :
+      kategori === "Arrangement" ? "Dette skjer i Halden" :
+      "Ny lokal sak"
+    );
+
+    const ingress = payload.ingress || (
+      clean ? clean.slice(0, 130) + (clean.length > 130 ? "..." : "") : "Kort forklart sak for Halden NÅ."
+    );
+
+    const tekst = clean
+      ? `${ingress}\n\nKort forklart:\n${clean}\n\nDette er et AI-utkast som må kontrolleres før publisering.`
+      : "Skriv eller lim inn råstoff først. AI-utkastet må kontrolleres før publisering.";
+
+    return {
+      kategori,
+      tittel: title,
+      ingress,
+      tekst,
+      bildeUrl: payload.bildeUrl || "",
+      videoUrl: payload.videoUrl || "",
+      mediaPlassering: payload.mediaPlassering || "top",
+      kilde: payload.kilde || "Manuelt råstoff",
+      sourceUrl: payload.sourceUrl || "",
+      hovedsak: false
+    };
+  }
+
+  function fillNewStoryFormFromAi(draft){
+    if(exists("sourceType") && draft.kategori) $("sourceType").value = draft.kategori;
+    if(exists("newTitle")) $("newTitle").value = draft.tittel || "";
+    if(exists("newIngress")) $("newIngress").value = draft.ingress || "";
+    if(exists("newText")) $("newText").value = draft.tekst || "";
+    if(exists("rawImage")) $("rawImage").value = draft.bildeUrl || "";
+    if(exists("rawVideo")) $("rawVideo").value = draft.videoUrl || "";
+    if(exists("mediaPlacement")) $("mediaPlacement").value = draft.mediaPlassering || "top";
+    if(exists("customSourceType")) $("customSourceType").value = draft.kilde || "";
+    if(exists("sourceUrl")) $("sourceUrl").value = draft.sourceUrl || "";
+    if(exists("mainStory")) $("mainStory").checked = draft.hovedsak === true;
+
+    renderPreview("draftPreview", readNewStoryForm());
+  }
+
+  async function lagAiForslag(){
+    const payload = readNewStoryForm();
+
+    if(!payload.tittel && !payload.ingress && !payload.tekst && !payload.rawInput){
+      alert("Lim inn råstoff eller skriv litt tekst først.");
+      return;
+    }
+
+    const btn = $("makeAiDraft");
+    const oldText = btn ? btn.textContent : "";
+
+    try{
+      if(btn){
+        btn.disabled = true;
+        btn.textContent = "Lager forslag...";
+      }
+
+      setStatus("AI lager forslag...");
+
+      const res = await fetch(aiDraftUrl(), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+
+      if(!res.ok) throw new Error(`AI svarte ${res.status}`);
+
+      const data = await res.json();
+
+      if(!data.ok || !data.draft){
+        throw new Error(data.error || "AI ga ikke forslag");
+      }
+
+      fillNewStoryFormFromAi(data.draft);
+      setStatus(data.fallback ? "Lokalt forslag klart" : "AI-forslag klart");
+    }catch(err){
+      console.log("AI-forslag feilet, bruker lokal mal:", err);
+      fillNewStoryFormFromAi(localAiFallbackDraft(payload));
+      setStatus("Lokalt forslag klart");
+    }finally{
+      if(btn){
+        btn.disabled = false;
+        btn.textContent = oldText || "Lag AI-forslag";
+      }
+    }
+  }
+
+
   document.querySelectorAll(".tab").forEach((tab) => {
     tab.addEventListener("click", () => switchTab(tab.dataset.tab));
   });
+
+  if(exists("makeAiDraft")){
+    $("makeAiDraft").addEventListener("click", lagAiForslag);
+  }
 
   if(exists("makeDraft")){
     $("makeDraft").addEventListener("click", async () => {
@@ -509,7 +1020,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const story = readEditor();
       story.status = "publisert";
 
-      const existingIndex = published.findIndex(s => s.id === story.id);
+      const existingIndex = published.findIndex(s => normalizeStory(s).id === story.id);
 
       if(existingIndex >= 0){
         published[existingIndex] = story;
@@ -553,8 +1064,8 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   if(exists("addPartner")){
-    $("addPartner").addEventListener("click", () => {
-      partners.unshift({
+    $("addPartner").addEventListener("click", async () => {
+      const partner = normalizePartner({
         id: makeId("partner"),
         navn: value("partnerName", "Lokal partner") || "Lokal partner",
         logoTekst: value("partnerLogoText", "LOGO") || "LOGO",
@@ -568,6 +1079,14 @@ document.addEventListener("DOMContentLoaded", () => {
         aktiv: true
       });
 
+      partners.unshift(partner);
+
+      try{
+        await savePartnerToFirebase(partner);
+      }catch(err){
+        console.error("Kunne ikke lagre partner i Firebase:", err);
+      }
+
       ["partnerName", "partnerLogoText", "partnerLogoUrl", "partnerText", "partnerUrl", "partnerStart", "partnerEnd"].forEach(id => {
         if(exists(id)) $(id).value = "";
       });
@@ -577,16 +1096,29 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   if(exists("addSource")){
-    $("addSource").addEventListener("click", () => {
-      sources.unshift({
+    $("addSource").addEventListener("click", async () => {
+      const source = normalizeSource({
         id: makeId("source"),
         name: value("sourceName", "Uten navn") || "Uten navn",
         kind: value("sourceKind", "URL"),
         link: value("sourceLink", ""),
         instruction: value("sourceInstruction", ""),
-        frequency: value("sourceFrequency", "Manuell"),
+        frequency: value("sourceFrequency", "Daglig"),
         active: true
       });
+
+      if(!source.link){
+        alert("Legg inn URL / dokumentlenke først.");
+        return;
+      }
+
+      sources.unshift(source);
+
+      try{
+        await saveSourceToFirebase(source);
+      }catch(err){
+        console.error("Kunne ikke lagre kilde i Firebase:", err);
+      }
 
       ["sourceName", "sourceLink", "sourceInstruction"].forEach(id => {
         if(exists(id)) $(id).value = "";
@@ -594,6 +1126,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
       renderAll();
     });
+  }
+
+  if(exists("runSourceWatch")){
+    $("runSourceWatch").addEventListener("click", runSourceWatchNow);
   }
 
   async function copyText(id){

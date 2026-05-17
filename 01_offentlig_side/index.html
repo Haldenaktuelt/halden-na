@@ -3,6 +3,9 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light only">
+  <meta name="supported-color-schemes" content="light">
+  <meta name="theme-color" content="#18110c">
   <title>HALDEN NÅ</title>
   <link rel="stylesheet" href="css/style.css">
 </head>
@@ -92,6 +95,129 @@
       </section>
     </aside>
   </main>
+
+
+  <section class="liveRow" id="liveRow" aria-label="Direkte og nyttig akkurat nå">
+
+    <a class="liveCard politiloggCard"
+       href="https://www.politiet.no/politiloggen?distrikt=ost"
+       target="_blank"
+       rel="noopener"
+       aria-label="Åpne politiloggen for Øst politidistrikt">
+      <div class="liveTop">
+        <div>
+          <div class="kicker">Direkte fra politiet</div>
+          <h3>Politiloggen</h3>
+        </div>
+        <div class="liveBadge red">LIVE</div>
+      </div>
+
+      <div class="liveFeed" id="politilogg-feed">
+        <div class="liveItem">
+          <small>HENTER · ØST</small>
+          <p>Laster siste meldinger fra politiet...</p>
+        </div>
+      </div>
+    </a>
+
+    <a class="liveCard weatherCard"
+       href="https://www.yr.no/nb/v%C3%A6rvarsel/timetabell/1-34643/Norge/%C3%98stfold/Halden/Halden?i=0"
+       target="_blank"
+       rel="noopener"
+       aria-label="Åpne værvarsel for Halden hos Yr">
+      <div class="liveTop">
+        <div>
+          <div class="kicker">Været nå</div>
+          <h3>Halden</h3>
+        </div>
+        <div class="liveBadge">YR</div>
+      </div>
+
+      <div class="weatherNow">
+        <div class="weatherMain">
+          <div class="weatherIcon" id="weather-icon">🌤️</div>
+
+          <div class="weatherTempWrap">
+            <div class="temp" id="weather-temp">--°</div>
+            <div class="weatherFeels">Føles som <span id="weather-feels">--°</span></div>
+          </div>
+        </div>
+
+        <div class="weatherStack">
+          <div class="weatherLine">
+            <span>Nedbør</span>
+            <b><span id="weather-rain">--</span> mm</b>
+          </div>
+
+          <div class="weatherLine">
+            <span>Vind</span>
+            <b><span id="weather-wind">--</span> m/s</b>
+          </div>
+
+          <div class="weatherLine">
+            <span>Sol opp</span>
+            <b id="weather-sunrise">--:--</b>
+          </div>
+
+          <div class="weatherLine">
+            <span>Sol ned</span>
+            <b id="weather-sunset">--:--</b>
+          </div>
+        </div>
+      </div>
+    </a>
+
+    <a class="liveCard sportCard"
+       href="https://www.fifa.com/en/tournaments/mens/worldcup/canadamexicousa2026"
+       target="_blank"
+       rel="noopener"
+       aria-label="Åpne VM 2026 hos FIFA">
+      <div class="liveTop">
+        <div>
+          <div class="kicker">Sport</div>
+          <h3>VM 2026</h3>
+        </div>
+        <div class="liveBadge">⚽</div>
+      </div>
+
+      <div class="sportCountdown">
+        <div class="countNumber" id="worldcup-days">--</div>
+        <div class="countText">
+          <b>dager til VM</b>
+          <span id="worldcup-start">Starter 11. juni 2026</span>
+        </div>
+      </div>
+
+      <div class="liveFeed sportMini" id="sport-feed">
+        <div class="liveItem compact">
+          <p>• Følg VM live hos Halden NÅ</p>
+        </div>
+      </div>
+    </a>
+
+    <a class="liveCard trafficCard trafficHidden"
+       id="traffic-card"
+       href="https://www.vegvesen.no/trafikk/hvaskjer?c=31&lat=59.12519&lng=11.33814&zoom=9"
+       target="_blank"
+       rel="noopener"
+       aria-label="Åpne trafikkart for Halden-området">
+      <div class="liveTop">
+        <div>
+          <div class="kicker">Trafikkvarsel</div>
+          <h3>Trafikk nå</h3>
+        </div>
+        <div class="liveBadge red">AKTIV</div>
+      </div>
+
+      <div class="liveFeed" id="traffic-feed">
+        <div class="liveItem compact">
+          <p>• Trafikkhendelse i Halden-området</p>
+        </div>
+      </div>
+    </a>
+
+  </section>
+
 
   <section class="sections" id="seksjonskort"></section>
 </div>

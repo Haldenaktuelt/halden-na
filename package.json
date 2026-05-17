@@ -1,0 +1,13 @@
+{
+  "name": "halden-naa",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Halden NÅ lokalportal med Netlify Functions",
+  "scripts": {
+    "dev": "netlify dev",
+    "start": "netlify dev"
+  },
+  "devDependencies": {
+    "netlify-cli": "^17.38.1"
+  }
+}

@@ -21,6 +21,7 @@
       <button class="tab active" data-tab="ai">Ny sak</button>
       <button class="tab" data-tab="godkjenning">Til godkjenning</button>
       <button class="tab" data-tab="publisert">Publisert</button>
+      <button class="tab" data-tab="tips">Tips</button>
       <button class="tab" data-tab="kilder">Kilder</button>
       <button class="tab" data-tab="partnere">Partnere</button>
       <button class="tab" data-tab="eksport">Eksport</button>
@@ -45,6 +46,7 @@
             <option>Meninger</option>
             <option>Historie</option>
             <option>Kort forklart</option>
+            <option>Tips</option>
           </select>
 
           <label>Tittel</label>
@@ -86,9 +88,11 @@
           <textarea id="rawInput" placeholder="Valgfritt: lim inn råstoff, politilogg, kommunetekst eller notater her..."></textarea>
 
           <div class="row">
+            <button class="primary" id="makeAiDraft">Lag AI-forslag</button>
             <button class="primary" id="makeDraft">Send til godkjenning</button>
             <button class="secondary" id="clearRaw">Tøm</button>
           </div>
+          <p class="small" id="aiHelpText">AI lager kun forslag. Saken må alltid kontrolleres og sendes til godkjenning manuelt.</p>
         </div>
 
         <div class="card">
@@ -112,6 +116,14 @@
         <h2>Publiserte saker</h2>
         <p class="small">Her ligger publiserte saker. De kan trekkes tilbake uten duplikater.</p>
         <div id="publishedList" class="stack"></div>
+      </div>
+    </section>
+
+    <section id="tips" class="view">
+      <div class="card">
+        <h2>Innsendte tips</h2>
+        <p class="small">Tips sendt inn fra offentlig side. Senere kan disse gjøres om til kladd/sak.</p>
+        <div id="tipsList" class="stack"></div>
       </div>
     </section>
 
@@ -149,7 +161,13 @@
 
           <div class="row">
             <button class="primary" id="addSource">Legg til kilde</button>
+            <button class="secondary" id="runSourceWatch">Kjør kildevakt nå</button>
           </div>
+
+          <p class="small">
+            Kildevakten går automatisk på Netlify etter valgt frekvens.
+            Nye funn legges som kladd i Til godkjenning.
+          </p>
         </div>
 
         <div class="card">
