@@ -77,7 +77,7 @@ async function runSourceWatch() {
       const draft = await makeDraftFromSource(s, text);
       const draftId = `ai-${Date.now()}-${safeId(s.name || "kilde")}`;
 
-      await setDocument("saker", draftId, {
+      const draftData = {
         id: draftId,
         kategori: draft.kategori,
         tittel: draft.tittel,
@@ -95,7 +95,13 @@ async function runSourceWatch() {
         aiGenerated: true,
         sourceId: source.id,
         oppdatertAt: new Date().toISOString()
-      });
+      };
+
+      await setDocument("saker", draftId, draftData);
+
+      // Skriv også til kladder som backup/diagnose.
+      // Redaktørpanelet bruker saker/status, men dette gjør det lettere å finne AI-kladd i Firestore.
+      await setDocument("kladder", draftId, draftData);
 
       draftsCreated++;
 
@@ -106,7 +112,13 @@ async function runSourceWatch() {
         lastDraftId: draftId
       });
 
-      results.push({ source: s.name, status: "kladd laget", title: draft.tittel });
+      results.push({
+        source: s.name,
+        status: "kladd laget",
+        title: draft.tittel,
+        draftId,
+        draft: draftData
+      });
     } catch (err) {
       await updateSource(source.id, {
         lastChecked: new Date().toISOString(),

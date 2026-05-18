@@ -117,9 +117,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
 
   async function refreshDraftsFromFirebase(){
-    // Trygg V7:
-    // Kladder hentes live via onSnapshot fra "saker" med status "til_godkjenning".
-    // Denne funksjonen finnes bare for knapper/status etter kildevakt.
+    // Trygg V8:
+    // Ikke nullstill lokale AI-kladder her.
+    // Kladder kommer enten fra onSnapshot på "saker" eller direkte fra source-watch-svaret.
     renderAll();
     return drafts.length;
   }
@@ -227,6 +227,30 @@ document.addEventListener("DOMContentLoaded", () => {
       mediaPlacement: mediaPlassering,
       sourceType: kilde
     };
+  }
+
+
+  function addReturnedAiDrafts(results = []){
+    let added = 0;
+
+    results.forEach((result) => {
+      if(!result || !result.draft) return;
+
+      const story = normalizeStory(result.draft);
+      const existsAlready = drafts.some(d => normalizeStory(d).id === story.id);
+
+      if(!existsAlready){
+        drafts.unshift(story);
+        added++;
+      }
+    });
+
+    if(added){
+      save();
+      renderAll();
+    }
+
+    return added;
   }
 
   function normalizeTip(tip){
@@ -815,15 +839,18 @@ document.addEventListener("DOMContentLoaded", () => {
         throw new Error(data.error || "Kildevakten feilet");
       }
 
+      const directAdded = addReturnedAiDrafts(data.results || []);
       const draftCount = await refreshDraftsFromFirebase();
 
-      setStatus(`Kildevakt ferdig · ${data.draftsCreated || 0} kladder laget · ${draftCount} i listen`);
+      const visibleCount = Math.max(drafts.length, draftCount, directAdded);
 
-      if((data.draftsCreated || 0) > 0 || draftCount > 0){
+      setStatus(`Kildevakt ferdig · ${data.draftsCreated || 0} kladder laget · ${visibleCount} i listen`);
+
+      if((data.draftsCreated || 0) > 0 || visibleCount > 0){
         switchTab("godkjenning");
       }
 
-      alert(`Kildevakt ferdig.\nKladder laget: ${data.draftsCreated || 0}\nKladder i listen: ${draftCount}`);
+      alert(`Kildevakt ferdig.\nKladder laget: ${data.draftsCreated || 0}\nKladder i listen: ${visibleCount}`);
     }catch(err){
       console.error("Kildevakt feilet:", err);
       alert("Kildevakten feilet. Sjekk Netlify Functions og OPENAI_API_KEY.");
