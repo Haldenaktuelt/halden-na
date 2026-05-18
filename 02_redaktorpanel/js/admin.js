@@ -48,6 +48,31 @@ document.addEventListener("DOMContentLoaded", () => {
     save();
     renderAll();
   });
+
+  const kladderQuery = collection(db, "kladder");
+
+  onSnapshot(kladderQuery, (snapshot) => {
+    const firebaseKladder = [];
+
+    snapshot.forEach((docSnap) => {
+      firebaseKladder.push(normalizeStory({
+        firebaseId: docSnap.id,
+        ...docSnap.data(),
+        status: "til_godkjenning"
+      }));
+    });
+
+    draftsFromKladder = firebaseKladder;
+    drafts = mergeDraftLists(draftsFromSaker, draftsFromKladder, drafts);
+    save();
+    renderAll();
+
+    console.log("AI-kladder hentet:", firebaseKladder.length);
+  }, (err) => {
+    console.error("Kunne ikke lytte på kladder:", err);
+  });
+
+
   const tipsQuery = query(
     collection(db, COLLECTIONS.tips),
     orderBy("createdAt", "desc")
@@ -117,9 +142,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
 
   async function refreshDraftsFromFirebase(){
-    // Trygg V8:
-    // Ikke nullstill lokale AI-kladder her.
-    // Kladder kommer enten fra onSnapshot på "saker" eller direkte fra source-watch-svaret.
+    drafts = mergeDraftLists(draftsFromSaker, draftsFromKladder, drafts);
+    save();
     renderAll();
     return drafts.length;
   }
@@ -252,6 +276,29 @@ document.addEventListener("DOMContentLoaded", () => {
 
     return added;
   }
+
+  function mergeDraftLists(...lists){
+    const map = new Map();
+
+    lists.flat().forEach((raw) => {
+      const story = normalizeStory(raw);
+      const id = story.id || story.firebaseId;
+
+      if(!id) return;
+
+      map.set(id, story);
+    });
+
+    return Array.from(map.values()).sort((a, b) => {
+      const av = a.oppdatertAt?.toDate ? a.oppdatertAt.toDate().getTime() : new Date(a.oppdatertAt || a.dato || 0).getTime();
+      const bv = b.oppdatertAt?.toDate ? b.oppdatertAt.toDate().getTime() : new Date(b.oppdatertAt || b.dato || 0).getTime();
+
+      return (isNaN(bv) ? 0 : bv) - (isNaN(av) ? 0 : av);
+    });
+  }
+
+  let draftsFromSaker = [];
+  let draftsFromKladder = [];
 
   function normalizeTip(tip){
     return {
@@ -423,7 +470,17 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if(!id) return;
 
-    await deleteDoc(doc(db, COLLECTIONS.saker, id));
+    try{
+      await deleteDoc(doc(db, COLLECTIONS.saker, id));
+    }catch(err){
+      console.warn("Fant ikke kladd i saker, fortsetter:", err);
+    }
+
+    try{
+      await deleteDoc(doc(db, "kladder", id));
+    }catch(err){
+      console.warn("Fant ikke kladd i kladder, fortsetter:", err);
+    }
   }
 
   async function deleteStoryFromFirebase(story){
