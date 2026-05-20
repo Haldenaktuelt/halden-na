@@ -464,6 +464,19 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
 
+  async function deleteOnlyDraftCollection(story){
+    const cleanStory = normalizeStory(story);
+    const id = cleanStory.id || cleanStory.firebaseId;
+
+    if(!id) return;
+
+    try{
+      await deleteDoc(doc(db, "kladder", id));
+    }catch(err){
+      console.warn("Kunne ikke slette fra kladder:", err);
+    }
+  }
+
   async function deleteDraftFromFirebase(story){
     const cleanStory = normalizeStory(story);
     const id = cleanStory.id || cleanStory.firebaseId;
@@ -1143,12 +1156,23 @@ document.addEventListener("DOMContentLoaded", () => {
         published.unshift(story);
       }
 
-      drafts.splice(activeDraftIndex, 1);
+      const publishedId = normalizeStory(story).id;
+
+      drafts = drafts.filter(d => normalizeStory(d).id !== publishedId);
+
+      if(typeof draftsFromSaker !== "undefined"){
+        draftsFromSaker = draftsFromSaker.filter(d => normalizeStory(d).id !== publishedId);
+      }
+
+      if(typeof draftsFromKladder !== "undefined"){
+        draftsFromKladder = draftsFromKladder.filter(d => normalizeStory(d).id !== publishedId);
+      }
+
       activeDraftIndex = null;
 
       try{
         await saveStoryToFirebase(story);
-        await deleteDraftFromFirebase(story);
+        await deleteOnlyDraftCollection(story);
       }catch(err){
         console.error("Publiserings-feil:", err);
       }
@@ -1175,7 +1199,18 @@ document.addEventListener("DOMContentLoaded", () => {
           console.error("Kunne ikke slette kladd fra Firebase:", err);
         }
 
-        drafts.splice(activeDraftIndex, 1);
+        const deletedId = normalizeStory(story).id;
+
+        drafts = drafts.filter(d => normalizeStory(d).id !== deletedId);
+
+        if(typeof draftsFromSaker !== "undefined"){
+          draftsFromSaker = draftsFromSaker.filter(d => normalizeStory(d).id !== deletedId);
+        }
+
+        if(typeof draftsFromKladder !== "undefined"){
+          draftsFromKladder = draftsFromKladder.filter(d => normalizeStory(d).id !== deletedId);
+        }
+
         activeDraftIndex = null;
 
         if(exists("editorModal")){
