@@ -473,13 +473,13 @@ document.addEventListener("DOMContentLoaded", () => {
     try{
       await deleteDoc(doc(db, COLLECTIONS.saker, id));
     }catch(err){
-      console.warn("Fant ikke kladd i saker, fortsetter:", err);
+      console.warn("Kunne ikke slette fra saker:", err);
     }
 
     try{
       await deleteDoc(doc(db, "kladder", id));
     }catch(err){
-      console.warn("Fant ikke kladd i kladder, fortsetter:", err);
+      console.warn("Kunne ikke slette fra kladder:", err);
     }
   }
 
