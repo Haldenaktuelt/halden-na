@@ -39,6 +39,7 @@ async function runSourceWatch() {
 
     const processedHashes = parseStoredList(s.processedHashes || s.lastHashes || s.lastHash || "");
     const processedUrls = parseStoredList(s.processedUrls || "");
+    const processedTopics = parseStoredList(s.processedTopics || "");
 
     try {
       const pipeline = await runPipelineForSource({
@@ -58,8 +59,17 @@ async function runSourceWatch() {
         continue;
       }
 
-      const draftResults = pipeline.results.filter(r => r.ok && !r.skipped && r.draft);
+      let draftResults = pipeline.results.filter(r => r.ok && !r.skipped && r.draft);
       const skippedResults = pipeline.results.filter(r => r.skipped);
+
+      // Viktig: samme kilde kan gi flere URL-er om samme sak.
+      // Vi deduper først internt i samme kjøring.
+      draftResults = dedupeDraftResults(draftResults);
+
+      // Og i V12.2 lager vi maks én kladd per kilde per kjøring.
+      draftResults = draftResults
+        .sort((a, b) => Number(b.score || 0) - Number(a.score || 0))
+        .slice(0, 1);
 
       if (!draftResults.length) {
         skipped++;
@@ -85,15 +95,21 @@ async function runSourceWatch() {
 
       for (const item of draftResults) {
         const sourceUrl = normalizeUrl(item.url || s.link || "");
-        const hash = await sha256(item.hashText || `${sourceUrl}\n${item.draft.tittel}\n${item.draft.ingress}`);
+        const topicKey = topicFingerprint(item);
+        const hash = await sha256(`${topicKey}\n${item.hashText || ""}`);
 
-        if (processedHashes.includes(hash) || processedUrls.includes(sourceUrl)) {
+        if (
+          processedHashes.includes(hash) ||
+          processedUrls.includes(sourceUrl) ||
+          processedTopics.includes(topicKey)
+        ) {
           duplicates++;
           results.push({
             source: s.name,
             status: "duplikat hoppet over",
             title: item.draft.tittel,
-            url: sourceUrl
+            url: sourceUrl,
+            topic: topicKey
           });
           continue;
         }
@@ -116,10 +132,11 @@ async function runSourceWatch() {
           tid: nowTime(),
           hovedsak: false,
           aiGenerated: true,
-          aiPipeline: "v12.1",
+          aiPipeline: "v12.2",
           sourceId: source.id,
           nyhetsverdi: String(item.score || item.analysis?.score || ""),
           tema: item.analysis?.tema || "",
+          topicKey,
           oppdatertAt: new Date().toISOString()
         };
 
@@ -128,6 +145,7 @@ async function runSourceWatch() {
 
         processedHashes.unshift(hash);
         processedUrls.unshift(sourceUrl);
+        processedTopics.unshift(topicKey);
 
         draftsCreated++;
         sourceDrafts++;
@@ -140,17 +158,19 @@ async function runSourceWatch() {
           title: draftData.tittel,
           nyhetsverdi: draftData.nyhetsverdi,
           draftId,
+          topic: topicKey,
           draft: draftData
         });
       }
 
       await updateSource(source.id, {
         lastHash: processedHashes[0] || s.lastHash || "",
-        processedHashes: processedHashes.slice(0, 50).join("|"),
-        processedUrls: processedUrls.slice(0, 50).join("|"),
+        processedHashes: processedHashes.slice(0, 80).join("|"),
+        processedUrls: processedUrls.slice(0, 80).join("|"),
+        processedTopics: processedTopics.slice(0, 80).join("|"),
         lastChecked: new Date().toISOString(),
         lastResult: sourceDrafts
-          ? `V12.1 kladd laget: ${sourceDrafts}`
+          ? `V12.2 kladd laget: ${sourceDrafts}`
           : duplicates
             ? "Ingen ny sak. Duplikater hoppet over."
             : "Ingen ny relevant sak funnet.",
@@ -169,7 +189,7 @@ async function runSourceWatch() {
     }
   }
 
-  console.log("source-watch v12.1 result", {
+  console.log("source-watch v12.2 result", {
     checked,
     changed,
     skipped,
@@ -187,6 +207,68 @@ async function runSourceWatch() {
     results
   };
 }
+
+function dedupeDraftResults(items = []) {
+  const kept = [];
+
+  for (const item of items) {
+    const key = topicFingerprint(item);
+    const already = kept.some(existing => similarity(key, topicFingerprint(existing)) >= 0.72);
+
+    if (!already) {
+      kept.push(item);
+    }
+  }
+
+  return kept;
+}
+
+function topicFingerprint(item = {}) {
+  const text = [
+    item.analysis?.tema,
+    item.draft?.tittel,
+    item.draft?.ingress,
+    item.cleaned?.title
+  ].filter(Boolean).join(" ");
+
+  const words = normalizeWords(text)
+    .filter(w => !STOP_WORDS.has(w))
+    .slice(0, 12);
+
+  return words.join("-");
+}
+
+function normalizeWords(value = "") {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/æ/g, "ae")
+    .replace(/ø/g, "o")
+    .replace(/å/g, "a")
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .split(/\s+/)
+    .map(w => w.trim())
+    .filter(w => w.length > 2);
+}
+
+function similarity(a = "", b = "") {
+  const aw = new Set(a.split("-").filter(Boolean));
+  const bw = new Set(b.split("-").filter(Boolean));
+
+  if (!aw.size || !bw.size) return 0;
+
+  let overlap = 0;
+  for (const w of aw) {
+    if (bw.has(w)) overlap++;
+  }
+
+  return overlap / Math.min(aw.size, bw.size);
+}
+
+const STOP_WORDS = new Set([
+  "for", "med", "det", "som", "har", "til", "fra", "den", "der", "dette",
+  "etter", "mener", "sier", "skal", "kan", "var", "ble", "blir", "seg",
+  "ikke", "politiet", "nyheter", "nrk"
+]);
 
 function parseStoredList(value = "") {
   if (Array.isArray(value)) return value.filter(Boolean).map(String);

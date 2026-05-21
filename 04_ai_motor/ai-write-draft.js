@@ -6,26 +6,31 @@ async function writeDraft(input = {}) {
   const prompt = `
 Du er redaksjonsassistent for lokalavisen HALDEN NÅ.
 
-Skriv en NY lokalavis-kladd basert på råstoffet.
+Du skal lage en REDAKSJONELL KLADD, ikke et sammendrag.
 
-VIKTIG:
-- Ikke kopier setninger fra råstoffet.
+Målet:
+Forklar saken kort og forståelig for vanlige lesere.
+
+VIKTIGE REGLER:
+- Ikke kopier setninger fra kilden.
 - Ikke gjenta ingressen i brødteksten.
-- Ikke skriv "Kort forklart:".
-- Ikke list opp detaljer som ikke er viktige for folk i Halden.
-- Ikke bruk AI-språk.
+- Ikke start brødteksten med samme fakta som ingressen.
+- Ikke bruk "Kort forklart:".
+- Ikke bruk "NY UTVIKLING".
+- Ikke skriv lange avsnitt.
+- Ikke skriv mer enn 90–120 ord i brødteksten.
+- Ikke ta med uviktige detaljer.
 - Ikke finn på fakta.
-- Ikke skriv at dette er hentet fra AI.
-- Bruk korte avsnitt.
-- Skriv enkelt, rolig og folkelig.
+- Ikke skriv at AI har skrevet teksten.
 
 Format:
-- Tittel: kort og tydelig
-- Ingress: 1 kort setning
-- Tekst: 2–3 korte avsnitt, maks 120 ord
+- tittel: kort, tydelig og nøktern
+- ingress: én setning som forklarer hovedpoenget
+- tekst: 2 korte avsnitt
+  Avsnitt 1: hva har skjedd
+  Avsnitt 2: hvorfor det betyr noe / enkel forklaring
 
-Vinkel:
-Forklar saken som en lokal redaktør ville gjort det for folk i Halden.
+Skriv på norsk bokmål, folkelig og rolig.
 
 Kategori: ${input.kategori || "Lokalt"}
 Kilde: ${input.sourceName || input.source || ""}
@@ -34,11 +39,11 @@ URL: ${input.sourceUrl || input.url || ""}
 Analyse:
 ${JSON.stringify(input.analysis || {}, null, 2)}
 
-Råstoff:
+RÅSTOFF:
 Tittel: ${input.title || ""}
 Ingress: ${input.ingress || ""}
 Tekst:
-${input.content || ""}
+${trimForPrompt(input.content || "", 2600)}
 `;
 
   const schema = {
@@ -53,19 +58,19 @@ ${input.content || ""}
     required: ["kategori", "tittel", "ingress", "tekst"]
   };
 
-  const draft = await callOpenAIJson(prompt, schema, "halden_na_v12_1_draft");
+  const draft = await callOpenAIJson(prompt, schema, "halden_na_v12_2_draft");
 
   return {
     success: true,
     kategori: draft.kategori || input.kategori || input.analysis?.kategori || "Lokalt",
-    tittel: cleanLine(draft.tittel || input.analysis?.tema || input.title || "Ny lokal sak", 90),
+    tittel: cleanLine(draft.tittel || input.analysis?.tema || input.title || "Ny lokal sak", 95),
     ingress: cleanLine(draft.ingress || input.analysis?.hovedpoeng || input.ingress || "", 180),
-    tekst: cleanArticleText(draft.tekst || "")
+    tekst: cleanArticleText(draft.tekst || "", draft.ingress || input.ingress || "")
   };
 }
 
 function fallbackDraft(input = {}) {
-  const title = cleanLine(input.analysis?.tema || input.title || "Ny lokal sak", 90);
+  const title = cleanLine(input.analysis?.tema || input.title || "Ny lokal sak", 95);
   const ingress = cleanLine(input.analysis?.hovedpoeng || input.ingress || String(input.content || "").slice(0, 140), 180);
 
   const body = String(input.content || "")
@@ -79,41 +84,64 @@ function fallbackDraft(input = {}) {
     kategori: input.kategori || input.analysis?.kategori || "Lokalt",
     tittel: title,
     ingress,
-    tekst: cleanArticleText(`${ingress}\n\n${body.slice(0, 520)}${body.length > 520 ? "..." : ""}`)
+    tekst: cleanArticleText(body.slice(0, 520), ingress)
   };
+}
+
+function trimForPrompt(value = "", max = 2600) {
+  const clean = String(value || "").replace(/\s+/g, " ").trim();
+  return clean.length > max ? clean.slice(0, max).trim() + "..." : clean;
 }
 
 function cleanLine(value = "", max = 160) {
   return String(value || "")
     .replace(/\s+/g, " ")
     .replace(/^kort forklart[:：]?\s*/i, "")
+    .replace(/^ny utvikling[:：]?\s*/i, "")
     .trim()
     .slice(0, max)
     .trim();
 }
 
-function cleanArticleText(value = "") {
+function cleanArticleText(value = "", ingress = "") {
   let text = String(value || "")
     .replace(/^kort forklart[:：]?\s*/gim, "")
+    .replace(/^ny utvikling[:：]?\s*/gim, "")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
+
+  const ingressKey = normalizeForCompare(ingress).slice(0, 80);
 
   const paragraphs = text
     .split(/\n+/)
     .map(p => p.replace(/\s+/g, " ").trim())
-    .filter(Boolean);
+    .filter(Boolean)
+    .filter(p => {
+      const key = normalizeForCompare(p);
+      if (!key) return false;
+      if (ingressKey && key.startsWith(ingressKey.slice(0, 45))) return false;
+      return true;
+    });
 
   const deduped = [];
   const seen = new Set();
 
   for (const p of paragraphs) {
-    const key = p.toLowerCase().slice(0, 90);
+    const key = normalizeForCompare(p).slice(0, 90);
     if (seen.has(key)) continue;
     seen.add(key);
     deduped.push(p);
   }
 
-  return deduped.slice(0, 3).join("\n\n").trim();
+  return deduped.slice(0, 2).join("\n\n").trim();
+}
+
+function normalizeForCompare(value = "") {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 module.exports = { writeDraft };
