@@ -1,5 +1,8 @@
-const pdfParseModule = require("pdf-parse");
-const pdfParse = pdfParseModule.default || pdfParseModule;
+const path = require("path");
+const pdfParse = require(path.join(
+  path.dirname(require.resolve("pdf-parse/package.json")),
+  "lib/pdf-parse.js"
+));
 const { cleanText, trimText } = require("./clean-content.js");
 
 const DOCUMENT_TIMEOUT_MS = 10000;
@@ -27,7 +30,7 @@ async function fetchDocumentText(input = {}) {
     const res = await fetch(url, {
       signal: controller.signal,
       headers: {
-        "User-Agent": "HaldenNaaDokumentleser/1.1 kontakt:redaksjon@halden-naa.no",
+        "User-Agent": "HaldenNaaDokumentleser/1.2 kontakt:redaksjon@halden-naa.no",
         "Accept": "application/pdf,application/octet-stream,*/*"
       }
     });
