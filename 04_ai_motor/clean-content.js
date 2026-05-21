@@ -4,13 +4,13 @@ function cleanContent(input = {}) {
   const html = input.html || "";
   const url = input.url || "";
   const sourceName = input.sourceName || "";
+  const instruction = input.instruction || "";
 
   if (!html || html.length < 20) {
     return { url, sourceName, title: "", ingress: "", content: "", text: "", quality: 0 };
   }
 
   const $ = cheerio.load(html);
-
   removeNoise($);
 
   const title =
@@ -34,11 +34,16 @@ function cleanContent(input = {}) {
 
   let content = dedupe(paragraphs).join("\n\n");
 
+  const municipalityText = extractMunicipalityText($);
+  if (municipalityText.length > content.length || isMunicipalityContext({ url, sourceName, instruction })) {
+    content = municipalityText || content;
+  }
+
   if (content.length < 180) {
     const bodyLines = [];
-    $("body").find("h2,h3,p,li").each((_, el) => {
+    $("body").find("h1,h2,h3,h4,p,li,a").each((_, el) => {
       const text = cleanText($(el).text());
-      if (isGoodLine(text)) bodyLines.push(text);
+      if (isUsefulMunicipalityLine(text) || isGoodLine(text)) bodyLines.push(text);
     });
     content = dedupe(bodyLines).join("\n\n");
   }
@@ -52,8 +57,72 @@ function cleanContent(input = {}) {
     ingress: trimText(ingress, 260),
     content,
     text: content,
-    quality: scoreQuality(title, ingress, content)
+    quality: scoreQuality(title, ingress, content, { url, sourceName, instruction })
   };
+}
+
+function extractMunicipalityText($) {
+  const lines = [];
+
+  $("body").find("h1,h2,h3,h4,p,li,a").each((_, el) => {
+    const text = cleanText($(el).text());
+    if (isUsefulMunicipalityLine(text)) lines.push(text);
+  });
+
+  const deduped = dedupe(lines);
+  const important = [];
+  const normal = [];
+
+  for (const line of deduped) {
+    if (isHighValueMunicipalityLine(line)) important.push(line);
+    else normal.push(line);
+  }
+
+  return [...important, ...normal].slice(0, 45).join("\n\n");
+}
+
+function isMunicipalityContext(context = {}) {
+  const hay = `${context.url || ""} ${context.sourceName || ""} ${context.instruction || ""}`.toLowerCase();
+  return /(kommune|kunngjor|kunngjør|horing|høring|offentlig-ettersyn|offentlig ettersyn|detaljregulering|reguleringsplan|planforslag)/.test(hay);
+}
+
+function isUsefulMunicipalityLine(text = "") {
+  const t = cleanText(text);
+  if (t.length < 18) return false;
+  if (t.length > 650) return false;
+
+  const lower = t.toLowerCase();
+
+  const bad = [
+    "hopp til innhold","hopp til meny","logg inn","kontakt oss",
+    "personvern","cookie","informasjonskapsler","til toppen",
+    "facebook","instagram","linkedin","youtube","del siden",
+    "åpningstider","sentralbord","organisasjonsnummer"
+  ];
+
+  if (bad.some(word => lower.includes(word))) return false;
+
+  const goodWords = [
+    "høring","horing","offentlig ettersyn","kunngjøring","kunngjoring",
+    "detaljregulering","reguleringsplan","planforslag","byggesak",
+    "frist","innspill","merknad","uttalelse","varsles","varsel om oppstart",
+    "forslag til","kommunestyret","formannskapet","planutvalg",
+    "dyrendal","halden","tistedal","idd","berg","svinesund"
+  ];
+
+  if (goodWords.some(word => lower.includes(word))) return true;
+  if (/^[A-ZÆØÅ0-9].{20,160}$/.test(t) && /(plan|høring|regulering|kunngjør|forslag|varsel)/i.test(t)) return true;
+
+  return false;
+}
+
+function isHighValueMunicipalityLine(text = "") {
+  const lower = cleanText(text).toLowerCase();
+  return [
+    "høring","horing","offentlig ettersyn","detaljregulering",
+    "reguleringsplan","planforslag","frist","innspill",
+    "merknad","varsel om oppstart","kunngjøring","kunngjoring"
+  ].some(word => lower.includes(word));
 }
 
 function removeNoise($) {
@@ -122,18 +191,25 @@ function isGoodLine(text = "") {
   ];
 
   if (bad.some(word => lower.includes(word))) return false;
-  if ((t.match(/\b(pdf|docx|xlsx|pptx)\b/gi) || []).length > 3) return false;
+  if ((t.match(/\b(pdf|docx|xlsx|pptx)\b/gi) || []).length > 5) return false;
 
   return true;
 }
 
-function scoreQuality(title, ingress, content) {
+function scoreQuality(title, ingress, content, context = {}) {
   let score = 0;
+  const hay = `${title} ${ingress} ${content} ${context.url || ""} ${context.sourceName || ""} ${context.instruction || ""}`.toLowerCase();
+
   if (title && title.length > 8) score += 2;
   if (ingress && ingress.length > 45) score += 2;
-  if (content.length > 300) score += 3;
-  if (content.length > 900) score += 2;
+  if (content.length > 180) score += 2;
+  if (content.length > 300) score += 2;
+  if (content.length > 900) score += 1;
   if (content.length > 6000) score -= 1;
+
+  if (/(høring|horing|offentlig ettersyn|detaljregulering|planforslag|kunngjøring|kunngjoring)/.test(hay)) score += 2;
+  if (/(halden|dyrendal|tistedal|svinesund|idd|berg)/.test(hay)) score += 1;
+
   return Math.max(0, Math.min(10, score));
 }
 

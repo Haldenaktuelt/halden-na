@@ -14,9 +14,7 @@ async function runPipelineForSource(source = {}) {
   const maxArticles = Number(source.maxArticles || DEFAULT_MAX_ARTICLES);
   const minScore = Number(source.minScore || DEFAULT_MIN_SCORE);
 
-  if (!url) {
-    return { ok: false, error: "Mangler URL.", results: [] };
-  }
+  if (!url) return { ok: false, error: "Mangler URL.", results: [] };
 
   const firstPage = await fetchSourcePage(url);
   const feedInfo = detectFeed({
@@ -39,9 +37,7 @@ async function runPipelineForSource(source = {}) {
 
   for (const candidate of candidates) {
     try {
-      const page = candidate.html
-        ? candidate
-        : await fetchSourcePage(candidate.url);
+      const page = candidate.html ? candidate : await fetchSourcePage(candidate.url);
 
       const cleaned = cleanContent({
         url: page.url || candidate.url,
@@ -51,8 +47,11 @@ async function runPipelineForSource(source = {}) {
       });
 
       const hashText = `${cleaned.title}\n${cleaned.ingress}\n${cleaned.content}`.slice(0, 3000);
+      const isMunicipality = isMunicipalitySource({ url: page.url || candidate.url, sourceName, instruction, text: hashText });
+      const minLength = isMunicipality ? 90 : 160;
+      const minQuality = isMunicipality ? 3 : 4;
 
-      if (!cleaned.content || cleaned.content.length < 160 || cleaned.quality < 4) {
+      if (!cleaned.content || cleaned.content.length < minLength || cleaned.quality < minQuality) {
         results.push({
           ok: true,
           skipped: true,
@@ -148,9 +147,19 @@ async function buildCandidates({ url, html, contentType, feedInfo, maxArticles }
   if (feedInfo.type === "frontpage" || feedInfo.type === "list") {
     const links = extractArticleLinks({ url, html, maxLinks: maxArticles });
     if (links.length) return links.map(link => ({ url: link.url, title: link.title, html: "" }));
+
+    // V12.3: kommune-/høringssider kan være selve saken selv om siden ser ut som liste.
+    if (isMunicipalitySource({ url, text: html })) {
+      return [{ url, html, contentType }];
+    }
   }
 
   return [{ url, html, contentType }];
+}
+
+function isMunicipalitySource(input = {}) {
+  const hay = `${input.url || ""} ${input.sourceName || ""} ${input.instruction || ""} ${input.text || ""}`.toLowerCase();
+  return /(kommune|kunngjor|kunngjør|horing|høring|offentlig-ettersyn|offentlig ettersyn|detaljregulering|reguleringsplan|planforslag)/.test(hay);
 }
 
 function extractRssLinks(xml = "", baseUrl = "") {
