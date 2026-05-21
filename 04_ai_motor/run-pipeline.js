@@ -1,10 +1,12 @@
 const { detectFeed } = require("./detect-feed.js");
 const { extractArticleLinks } = require("./extract-article-links.js");
+const { extractDocumentLinks } = require("./extract-document-links.js");
 const { cleanContent } = require("./clean-content.js");
 const { analyzeArticle } = require("./ai-analyze.js");
 const { writeDraft } = require("./ai-write-draft.js");
 
 const DEFAULT_MAX_ARTICLES = 5;
+const DEFAULT_MAX_DOCUMENTS = 8;
 const DEFAULT_MIN_SCORE = 6;
 
 async function runPipelineForSource(source = {}) {
@@ -12,6 +14,7 @@ async function runPipelineForSource(source = {}) {
   const sourceName = source.name || source.sourceName || "Kilde";
   const instruction = source.instruction || "";
   const maxArticles = Number(source.maxArticles || DEFAULT_MAX_ARTICLES);
+  const maxDocuments = Number(source.maxDocuments || DEFAULT_MAX_DOCUMENTS);
   const minScore = Number(source.minScore || DEFAULT_MIN_SCORE);
 
   if (!url) return { ok: false, error: "Mangler URL.", results: [] };
@@ -30,7 +33,10 @@ async function runPipelineForSource(source = {}) {
     html: firstPage.html,
     contentType: firstPage.contentType,
     feedInfo,
-    maxArticles
+    maxArticles,
+    maxDocuments,
+    sourceName,
+    instruction
   });
 
   const results = [];
@@ -38,6 +44,24 @@ async function runPipelineForSource(source = {}) {
   for (const candidate of candidates) {
     try {
       const page = candidate.html ? candidate : await fetchSourcePage(candidate.url);
+
+      if (candidate.kind === "document") {
+        results.push({
+          ok: true,
+          skipped: true,
+          status: "document_found",
+          reason: "Dokumentlenke funnet. Tekstlesing fra dokument kommer i neste steg.",
+          url: candidate.url,
+          document: {
+            url: candidate.url,
+            title: candidate.title || "",
+            type: candidate.type || "document",
+            score: candidate.score || 0
+          },
+          hashText: `${candidate.url}\n${candidate.title || ""}`
+        });
+        continue;
+      }
 
       const cleaned = cleanContent({
         url: page.url || candidate.url,
@@ -52,6 +76,31 @@ async function runPipelineForSource(source = {}) {
       const minQuality = isMunicipality ? 3 : 4;
 
       if (!cleaned.content || cleaned.content.length < minLength || cleaned.quality < minQuality) {
+        const docs = isMunicipality
+          ? extractDocumentLinks({
+              url: page.url || candidate.url,
+              html: page.html || "",
+              sourceName,
+              instruction,
+              maxDocuments
+            })
+          : [];
+
+        if (docs.length) {
+          for (const doc of docs.slice(0, 3)) {
+            results.push({
+              ok: true,
+              skipped: true,
+              status: "document_found",
+              reason: "Fant dokumentlenke på kommune-/høringsside. Dokumentlesing kommer i neste steg.",
+              url: doc.url,
+              document: doc,
+              hashText: `${doc.url}\n${doc.title || ""}`
+            });
+          }
+          continue;
+        }
+
         results.push({
           ok: true,
           skipped: true,
@@ -133,33 +182,64 @@ async function runPipelineForSource(source = {}) {
     url,
     feedInfo,
     checked: candidates.length,
+    documentsFound: results.filter(r => r.status === "document_found").length,
     draftsReady: results.filter(r => r.ok && !r.skipped && r.draft).length,
     results
   };
 }
 
-async function buildCandidates({ url, html, contentType, feedInfo, maxArticles }) {
+async function buildCandidates({
+  url,
+  html,
+  contentType,
+  feedInfo,
+  maxArticles,
+  maxDocuments,
+  sourceName,
+  instruction
+}) {
+  const isMunicipality = isMunicipalitySource({ url, sourceName, instruction, text: html });
+
+  if (isMunicipality) {
+    const docs = extractDocumentLinks({
+      url,
+      html,
+      sourceName,
+      instruction,
+      maxDocuments
+    });
+
+    if (docs.length) {
+      return docs.map(doc => ({
+        kind: "document",
+        url: doc.url,
+        title: doc.title,
+        type: doc.type,
+        score: doc.score
+      }));
+    }
+  }
+
   if (feedInfo.type === "rss") {
     const rssLinks = extractRssLinks(html, url).slice(0, maxArticles);
-    return rssLinks.map(item => ({ url: item.url, title: item.title, html: "" }));
+    return rssLinks.map(item => ({ kind: "article", url: item.url, title: item.title, html: "" }));
   }
 
   if (feedInfo.type === "frontpage" || feedInfo.type === "list") {
     const links = extractArticleLinks({ url, html, maxLinks: maxArticles });
-    if (links.length) return links.map(link => ({ url: link.url, title: link.title, html: "" }));
+    if (links.length) return links.map(link => ({ kind: "article", url: link.url, title: link.title, html: "" }));
 
-    // V12.3: kommune-/høringssider kan være selve saken selv om siden ser ut som liste.
-    if (isMunicipalitySource({ url, text: html })) {
-      return [{ url, html, contentType }];
+    if (isMunicipality) {
+      return [{ kind: "article", url, html, contentType }];
     }
   }
 
-  return [{ url, html, contentType }];
+  return [{ kind: "article", url, html, contentType }];
 }
 
 function isMunicipalitySource(input = {}) {
   const hay = `${input.url || ""} ${input.sourceName || ""} ${input.instruction || ""} ${input.text || ""}`.toLowerCase();
-  return /(kommune|kunngjor|kunngjør|horing|høring|offentlig-ettersyn|offentlig ettersyn|detaljregulering|reguleringsplan|planforslag)/.test(hay);
+  return /(kommune|kunngjor|kunngjør|horing|høring|offentlig-ettersyn|offentlig ettersyn|detaljregulering|reguleringsplan|planforslag|saksframlegg|saksfremlegg|plankart|planbeskrivelse)/.test(hay);
 }
 
 function extractRssLinks(xml = "", baseUrl = "") {
@@ -188,7 +268,7 @@ async function fetchSourcePage(url) {
   const res = await fetch(url, {
     headers: {
       "User-Agent": "HaldenNaaKildevakt/3.0 kontakt:redaksjon@halden-naa.no",
-      "Accept": "text/html,application/xhtml+xml,application/xml,text/plain"
+      "Accept": "text/html,application/xhtml+xml,application/xml,text/plain,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
     }
   });
 
