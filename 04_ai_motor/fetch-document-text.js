@@ -1,6 +1,9 @@
 const pdfParse = require("pdf-parse");
 const { cleanText, trimText } = require("./clean-content.js");
 
+const DOCUMENT_TIMEOUT_MS = 10000;
+const MAX_DOCUMENT_CHARS = 9000;
+
 async function fetchDocumentText(input = {}) {
   const url = input.url || "";
   const title = input.title || "";
@@ -16,16 +19,35 @@ async function fetchDocumentText(input = {}) {
     };
   }
 
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), DOCUMENT_TIMEOUT_MS);
+
   try {
     const res = await fetch(url, {
+      signal: controller.signal,
       headers: {
-        "User-Agent": "HaldenNaaDokumentleser/1.0 kontakt:redaksjon@halden-naa.no",
+        "User-Agent": "HaldenNaaDokumentleser/1.1 kontakt:redaksjon@halden-naa.no",
         "Accept": "application/pdf,application/octet-stream,*/*"
       }
     });
 
+    clearTimeout(timeout);
+
     if (!res.ok) {
       throw new Error(`Dokument svarte ${res.status}`);
+    }
+
+    const contentLength = Number(res.headers.get("content-length") || 0);
+    if (contentLength && contentLength > 8 * 1024 * 1024) {
+      return {
+        ok: false,
+        skipped: true,
+        reason: "Dokumentet er for stort for rask lokal lesing.",
+        url,
+        title,
+        type,
+        contentLength
+      };
     }
 
     const contentType = res.headers.get("content-type") || "";
@@ -52,9 +74,13 @@ async function fetchDocumentText(input = {}) {
       contentType
     };
   } catch (error) {
+    clearTimeout(timeout);
+
     return {
       ok: false,
-      error: error.message,
+      error: error.name === "AbortError"
+        ? "Dokumentlesing tok for lang tid og ble stoppet."
+        : error.message,
       url,
       title,
       type
@@ -64,9 +90,16 @@ async function fetchDocumentText(input = {}) {
 
 async function readPdf({ url, title, type, buffer, contentType }) {
   try {
-    const parsed = await pdfParse(buffer);
+    const parsed = await pdfParse(buffer, {
+      max: 10
+    });
+
     const rawText = parsed.text || "";
-    const text = cleanDocumentText(rawText);
+    let text = cleanDocumentText(rawText);
+
+    if (text.length > MAX_DOCUMENT_CHARS) {
+      text = text.slice(0, MAX_DOCUMENT_CHARS).trim();
+    }
 
     if (!text || text.length < 120) {
       return {
@@ -141,7 +174,6 @@ function isNoiseLine(line = "") {
   ];
 
   if (noise.some(word => lower === word || lower.startsWith(word))) return true;
-
   if (/^\d+$/.test(line.trim())) return true;
 
   return false;

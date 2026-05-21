@@ -7,8 +7,9 @@ const { analyzeArticle } = require("./ai-analyze.js");
 const { writeDraft } = require("./ai-write-draft.js");
 
 const DEFAULT_MAX_ARTICLES = 5;
-const DEFAULT_MAX_DOCUMENTS = 5;
+const DEFAULT_MAX_DOCUMENTS = 1;
 const DEFAULT_MIN_SCORE = 6;
+const MAX_AI_CONTENT_CHARS = 6500;
 
 async function runPipelineForSource(source = {}) {
   const url = source.link || source.url || "";
@@ -42,58 +43,17 @@ async function runPipelineForSource(source = {}) {
 
   const results = [];
 
-  for (const candidate of candidates) {
+  for (const candidate of candidates.slice(0, isMunicipalitySource({ url, sourceName, instruction, text: firstPage.html }) ? 1 : candidates.length)) {
     try {
       if (candidate.kind === "document") {
-        const documentText = await fetchDocumentText({
-          url: candidate.url,
-          title: candidate.title,
-          type: candidate.type
-        });
-
-        if (!documentText.ok) {
-          results.push({
-            ok: true,
-            skipped: true,
-            status: "document_read_failed",
-            reason: documentText.reason || documentText.error || "Dokument kunne ikke leses.",
-            url: candidate.url,
-            document: candidate,
-            hashText: `${candidate.url}\n${candidate.title || ""}`
-          });
-          continue;
-        }
-
-        const cleaned = {
-          url: candidate.url,
-          sourceName,
-          title: candidate.title || documentText.title || "Kommunalt dokument",
-          ingress: "",
-          content: documentText.content || documentText.text || "",
-          text: documentText.content || documentText.text || "",
-          quality: documentText.content?.length > 800 ? 8 : 6,
-          document: documentText
-        };
-
-        const result = await analyzeAndWrite({
-          cleaned,
-          url: candidate.url,
+        const documentResult = await handleDocumentCandidate({
+          candidate,
           sourceName,
           instruction,
-          minScore,
-          extraHash: `${candidate.url}\n${candidate.title || ""}`
+          minScore
         });
 
-        results.push({
-          ...result,
-          document: {
-            url: candidate.url,
-            title: candidate.title || "",
-            type: candidate.type || documentText.type || "document",
-            pages: documentText.pages || 0
-          }
-        });
-
+        results.push(documentResult);
         continue;
       }
 
@@ -118,57 +78,22 @@ async function runPipelineForSource(source = {}) {
               html: page.html || "",
               sourceName,
               instruction,
-              maxDocuments
+              maxDocuments: 1
             })
           : [];
 
         if (docs.length) {
-          for (const doc of docs.slice(0, 3)) {
-            const documentText = await fetchDocumentText(doc);
+          const documentResult = await handleDocumentCandidate({
+            candidate: {
+              kind: "document",
+              ...docs[0]
+            },
+            sourceName,
+            instruction,
+            minScore
+          });
 
-            if (!documentText.ok) {
-              results.push({
-                ok: true,
-                skipped: true,
-                status: "document_read_failed",
-                reason: documentText.reason || documentText.error || "Dokument kunne ikke leses.",
-                url: doc.url,
-                document: doc,
-                hashText: `${doc.url}\n${doc.title || ""}`
-              });
-              continue;
-            }
-
-            const cleanedDoc = {
-              url: doc.url,
-              sourceName,
-              title: doc.title || documentText.title || "Kommunalt dokument",
-              ingress: "",
-              content: documentText.content || documentText.text || "",
-              text: documentText.content || documentText.text || "",
-              quality: documentText.content?.length > 800 ? 8 : 6,
-              document: documentText
-            };
-
-            const result = await analyzeAndWrite({
-              cleaned: cleanedDoc,
-              url: doc.url,
-              sourceName,
-              instruction,
-              minScore,
-              extraHash: `${doc.url}\n${doc.title || ""}`
-            });
-
-            results.push({
-              ...result,
-              document: {
-                url: doc.url,
-                title: doc.title || "",
-                type: doc.type || documentText.type || "document",
-                pages: documentText.pages || 0
-              }
-            });
-          }
+          results.push(documentResult);
           continue;
         }
 
@@ -214,6 +139,58 @@ async function runPipelineForSource(source = {}) {
     documentReadFailed: results.filter(r => r.status === "document_read_failed").length,
     draftsReady: results.filter(r => r.ok && !r.skipped && r.draft).length,
     results
+  };
+}
+
+async function handleDocumentCandidate({ candidate, sourceName, instruction, minScore }) {
+  const documentText = await fetchDocumentText({
+    url: candidate.url,
+    title: candidate.title,
+    type: candidate.type
+  });
+
+  if (!documentText.ok) {
+    return {
+      ok: true,
+      skipped: true,
+      status: "document_read_failed",
+      reason: documentText.reason || documentText.error || "Dokument kunne ikke leses.",
+      url: candidate.url,
+      document: candidate,
+      hashText: `${candidate.url}\n${candidate.title || ""}`
+    };
+  }
+
+  const content = String(documentText.content || documentText.text || "").slice(0, MAX_AI_CONTENT_CHARS);
+
+  const cleaned = {
+    url: candidate.url,
+    sourceName,
+    title: candidate.title || documentText.title || "Kommunalt dokument",
+    ingress: "",
+    content,
+    text: content,
+    quality: content.length > 800 ? 8 : 6,
+    document: documentText
+  };
+
+  const result = await analyzeAndWrite({
+    cleaned,
+    url: candidate.url,
+    sourceName,
+    instruction,
+    minScore,
+    extraHash: `${candidate.url}\n${candidate.title || ""}`
+  });
+
+  return {
+    ...result,
+    document: {
+      url: candidate.url,
+      title: candidate.title || "",
+      type: candidate.type || documentText.type || "document",
+      pages: documentText.pages || 0
+    }
   };
 }
 
@@ -291,11 +268,11 @@ async function buildCandidates({
       html,
       sourceName,
       instruction,
-      maxDocuments
+      maxDocuments: Math.min(1, maxDocuments)
     });
 
     if (docs.length) {
-      return docs.map(doc => ({
+      return docs.slice(0, 1).map(doc => ({
         kind: "document",
         url: doc.url,
         title: doc.title,
