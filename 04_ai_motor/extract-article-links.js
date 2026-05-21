@@ -1,196 +1,81 @@
-import * as cheerio from "cheerio";
+const cheerio = require("cheerio");
+const { cleanText } = require("./clean-content.js");
 
-const BAD_PATH_PARTS = [
-  "/sport/resultater",
-  "/kontakt",
-  "/om/",
-  "/personvern",
-  "/cookies",
-  "/login",
-  "/logg-inn",
-  "/nyhetsbrev",
-  "/tips-oss",
-  "/radio/",
-  "/tv/",
-  "/video/",
-  "/direkte/",
-  "/sok",
-  "/search",
-  "facebook.com",
-  "twitter.com",
-  "x.com",
-  "instagram.com",
-  "linkedin.com",
-  "mailto:",
-  "tel:"
-];
+function extractArticleLinks(input = {}) {
+  const html = input.html || "";
+  const baseUrl = input.url || "";
+  const maxLinks = Number(input.maxLinks || 8);
+  const $ = cheerio.load(html);
+  const links = [];
 
-const ARTICLE_HINTS = [
-  "/nyheter/",
-  "/ostfold/",
-  "/osloogviken/",
-  "/lokal/",
-  "/innenriks/",
-  "/norge/",
-  "/kultur/",
-  "/sport/",
-  "/artikkel/",
-  "/sak/",
-  "/2025/",
-  "/2026/"
-];
+  $("a[href]").each((_, el) => {
+    const href = String($(el).attr("href") || "").trim();
+    const title = cleanText($(el).text());
+    const url = absoluteUrl(href, baseUrl);
 
-function safeUrl(href, baseUrl) {
-  if (!href || typeof href !== "string") return null;
+    if (!url || !isArticleLike(url, title)) return;
 
-  const trimmed = href.trim();
-  if (!trimmed || trimmed.startsWith("#")) return null;
+    links.push({
+      url,
+      title: title || url,
+      score: scoreLink(url, title)
+    });
+  });
 
-  try {
-    const url = new URL(trimmed, baseUrl);
-    url.hash = "";
-    return url.toString();
-  } catch {
-    return null;
-  }
+  return dedupeLinks(links)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, maxLinks);
 }
 
-function normalizeText(value = "") {
-  return String(value)
-    .replace(/\s+/g, " ")
-    .replace(/\u00a0/g, " ")
-    .trim();
+function isArticleLike(url = "", title = "") {
+  const lower = `${url} ${title}`.toLowerCase();
+
+  if (!/^https?:\/\//.test(url)) return false;
+
+  const bad = [
+    "facebook","twitter","instagram","linkedin","mailto:",
+    "/tag/","/emne/","/kategori/","/search","/sok","/login",
+    "personvern","cookies","kontakt","om-oss","rss"
+  ];
+
+  if (bad.some(x => lower.includes(x))) return false;
+  if (title && title.length < 12) return false;
+
+  if (url.includes("nrk.no") && /\/\d+\.\d+/.test(url)) return true;
+  if (/nyhet|aktuelt|sak|article|story|kunngjor|horing|høring|offentlig-ettersyn|detaljregulering/.test(lower)) return true;
+  if (title.length > 35) return true;
+
+  return false;
 }
 
-function isBadLink(urlString = "") {
-  const lower = urlString.toLowerCase();
-  return BAD_PATH_PARTS.some(part => lower.includes(part));
-}
-
-function sameDomainOrAllowed(urlString, baseUrl) {
-  try {
-    const url = new URL(urlString);
-    const base = new URL(baseUrl);
-
-    if (url.hostname === base.hostname) return true;
-
-    // NRK kan ha varianter, men bør fortsatt ligge på nrk.no
-    if (base.hostname.includes("nrk.no") && url.hostname.includes("nrk.no")) return true;
-
-    return false;
-  } catch {
-    return false;
-  }
-}
-
-function scoreLink({ url, title, text, sourceUrl }) {
-  const lowerUrl = url.toLowerCase();
-  const lowerText = `${title} ${text}`.toLowerCase();
+function scoreLink(url = "", title = "") {
+  const lower = `${url} ${title}`.toLowerCase();
   let score = 0;
 
-  if (sameDomainOrAllowed(url, sourceUrl)) score += 4;
-  if (ARTICLE_HINTS.some(hint => lowerUrl.includes(hint))) score += 4;
-  if (/\/\d{4}\//.test(lowerUrl)) score += 2;
-  if (/[-_]\d{6,}/.test(lowerUrl)) score += 2;
-  if (title.length >= 20) score += 3;
-  if (text.length >= 35) score += 1;
-  if (lowerText.includes("halden")) score += 5;
-  if (lowerText.includes("østfold") || lowerText.includes("ostfold")) score += 3;
-  if (lowerText.includes("sarpsborg") || lowerText.includes("fredrikstad")) score += 1;
-
-  if (lowerText.includes("annonse") || lowerText.includes("reklame")) score -= 5;
-  if (lowerText.includes("direkte") || lowerText.includes("live")) score -= 1;
-  if (isBadLink(url)) score -= 10;
+  if (title.length > 25) score += 3;
+  if (title.length > 60) score += 1;
+  if (url.includes("nrk.no") && /\/\d+\.\d+/.test(url)) score += 6;
+  if (/halden|østfold|ostfold|kommune|høring|horing|regulering|trafikk|politi|brann|arrangement/.test(lower)) score += 4;
+  if (/annonse|partner|kontakt|personvern|meny|logg inn/.test(lower)) score -= 8;
 
   return score;
 }
 
-function uniqueByUrl(items) {
-  const map = new Map();
-
-  items.forEach(item => {
-    if (!item?.url) return;
-    const existing = map.get(item.url);
-    if (!existing || item.score > existing.score) {
-      map.set(item.url, item);
-    }
-  });
-
-  return Array.from(map.values());
-}
-
-export function extractArticleLinks(html = "", sourceUrl = "", options = {}) {
-  const maxLinks = Number(options.maxLinks || 12);
-
-  if (!html || !sourceUrl) {
-    return {
-      ok: false,
-      type: "article_links",
-      sourceUrl,
-      count: 0,
-      links: [],
-      error: "Mangler HTML eller sourceUrl"
-    };
+function absoluteUrl(href, baseUrl) {
+  try {
+    return new URL(href, baseUrl).toString().split("#")[0];
+  } catch {
+    return "";
   }
-
-  const $ = cheerio.load(html);
-
-  $("script, style, noscript, svg, form, input, button, nav, footer, header").remove();
-  $("[class*='cookie'], [id*='cookie'], [class*='consent'], [id*='consent']").remove();
-  $("[class*='ad'], [id*='ad'], [class*='advert'], [class*='promo']").remove();
-
-  const found = [];
-
-  $("a[href]").each((_, el) => {
-    const href = $(el).attr("href");
-    const url = safeUrl(href, sourceUrl);
-    if (!url) return;
-    if (!sameDomainOrAllowed(url, sourceUrl)) return;
-    if (isBadLink(url)) return;
-
-    const title = normalizeText(
-      $(el).attr("aria-label") ||
-      $(el).attr("title") ||
-      $(el).find("h1,h2,h3,h4").first().text() ||
-      $(el).text()
-    );
-
-    const text = normalizeText($(el).text());
-
-    if (title.length < 8 && text.length < 20) return;
-
-    const item = {
-      url,
-      title: title.slice(0, 180),
-      text: text.slice(0, 260),
-      score: 0
-    };
-
-    item.score = scoreLink({ ...item, sourceUrl });
-
-    if (item.score >= 2) {
-      found.push(item);
-    }
-  });
-
-  const links = uniqueByUrl(found)
-    .sort((a, b) => b.score - a.score)
-    .slice(0, maxLinks)
-    .map((item, index) => ({
-      rank: index + 1,
-      url: item.url,
-      title: item.title,
-      score: item.score,
-      preview: item.text
-    }));
-
-  return {
-    ok: true,
-    type: "article_links",
-    sourceUrl,
-    count: links.length,
-    links
-  };
 }
 
-export default extractArticleLinks;
+function dedupeLinks(links = []) {
+  const seen = new Set();
+  return links.filter(link => {
+    if (seen.has(link.url)) return false;
+    seen.add(link.url);
+    return true;
+  });
+}
+
+module.exports = { extractArticleLinks };

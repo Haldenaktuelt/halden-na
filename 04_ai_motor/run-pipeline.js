@@ -1,74 +1,66 @@
-import { detectFeed } from "./detect-feed.js";
-import { extractArticleLinks } from "./extract-article-links.js";
-import { cleanContent } from "./clean-content.js";
-import { analyzeArticle } from "./ai-analyze.js";
-import { writeDraft } from "./ai-write-draft.js";
-
-/**
- * V12 Smart AI Pipeline
- *
- * Denne filen er "hjernen" i AI-motoren.
- * Den skal ikke publisere noe direkte.
- * Den skal:
- * 1. forstå kilden
- * 2. finne relevante artikler
- * 3. rense innhold
- * 4. analysere nyhetsverdi
- * 5. skrive kladd bare hvis saken er god nok
- */
+const { detectFeed } = require("./detect-feed.js");
+const { extractArticleLinks } = require("./extract-article-links.js");
+const { cleanContent } = require("./clean-content.js");
+const { analyzeArticle } = require("./ai-analyze.js");
+const { writeDraft } = require("./ai-write-draft.js");
 
 const DEFAULT_MAX_ARTICLES = 5;
 const DEFAULT_MIN_SCORE = 6;
 
-export async function runPipeline(input = {}) {
-  const {
-    url = "",
-    html = "",
-    sourceName = "",
-    instruction = "",
-    maxArticles = DEFAULT_MAX_ARTICLES,
-    minScore = DEFAULT_MIN_SCORE
-  } = input;
+async function runPipelineForSource(source = {}) {
+  const url = source.link || source.url || "";
+  const sourceName = source.name || source.sourceName || "Kilde";
+  const instruction = source.instruction || "";
+  const maxArticles = Number(source.maxArticles || DEFAULT_MAX_ARTICLES);
+  const minScore = Number(source.minScore || DEFAULT_MIN_SCORE);
+
+  if (!url) {
+    return { ok: false, error: "Mangler URL.", results: [] };
+  }
+
+  const firstPage = await fetchSourcePage(url);
+  const feedInfo = detectFeed({
+    url,
+    html: firstPage.html,
+    contentType: firstPage.contentType,
+    sourceName,
+    instruction
+  });
+
+  const candidates = await buildCandidates({
+    url,
+    html: firstPage.html,
+    contentType: firstPage.contentType,
+    feedInfo,
+    maxArticles
+  });
 
   const results = [];
 
-  if (!url && !html) {
-    return {
-      ok: false,
-      error: "Mangler URL eller HTML.",
-      results
-    };
-  }
+  for (const candidate of candidates) {
+    try {
+      const page = candidate.html
+        ? candidate
+        : await fetchSourcePage(candidate.url);
 
-  try {
-    const feedInfo = detectFeed({
-      url,
-      html,
-      sourceName,
-      instruction
-    });
-
-    const candidates = await buildCandidates({
-      url,
-      html,
-      feedInfo,
-      maxArticles
-    });
-
-    for (const candidate of candidates) {
       const cleaned = cleanContent({
-        url: candidate.url || url,
-        html: candidate.html || html,
+        url: page.url || candidate.url,
+        html: page.html || "",
         sourceName,
         instruction
       });
 
-      if (!cleaned || !cleaned.content || cleaned.content.length < 120) {
+      const hashText = `${cleaned.title}\n${cleaned.ingress}\n${cleaned.content}`.slice(0, 3000);
+
+      if (!cleaned.content || cleaned.content.length < 160 || cleaned.quality < 4) {
         results.push({
-          ok: false,
+          ok: true,
           skipped: true,
+          status: "for_lite_innhold",
           reason: "For lite rent innhold etter rensing.",
-          url: candidate.url || url
+          url: page.url || candidate.url,
+          hashText,
+          cleaned
         });
         continue;
       }
@@ -77,20 +69,23 @@ export async function runPipeline(input = {}) {
         title: cleaned.title,
         ingress: cleaned.ingress,
         content: cleaned.content,
-        url: candidate.url || url,
+        url: page.url || candidate.url,
         sourceName,
         instruction
       });
 
-      if (!analysis?.worthy || Number(analysis.score || 0) < minScore) {
+      if (!analysis.worthy || Number(analysis.score || 0) < minScore) {
         results.push({
           ok: true,
           skipped: true,
-          reason: analysis?.reason || "Ikke høy nok nyhetsverdi.",
-          score: analysis?.score || 0,
-          kategori: analysis?.kategori || "",
-          url: candidate.url || url,
-          cleaned
+          status: "ikke_god_nok",
+          reason: analysis.reason || "Lav nyhetsverdi.",
+          score: Number(analysis.score || 0),
+          kategori: analysis.kategori || "",
+          url: page.url || candidate.url,
+          hashText,
+          cleaned,
+          analysis
         });
         continue;
       }
@@ -100,82 +95,101 @@ export async function runPipeline(input = {}) {
         ingress: cleaned.ingress,
         content: cleaned.content,
         kategori: analysis.kategori || "Lokalt",
-        source: sourceName || url,
-        sourceUrl: candidate.url || url,
+        sourceName,
+        sourceUrl: page.url || candidate.url,
         analysis
       });
 
       results.push({
-        ok: draft?.success === true,
+        ok: true,
         skipped: false,
-        url: candidate.url || url,
-        feedInfo,
+        status: "kladd_klar",
+        score: Number(analysis.score || 0),
+        kategori: draft.kategori || analysis.kategori || "Lokalt",
+        url: page.url || candidate.url,
+        hashText,
         cleaned,
         analysis,
-        draft
+        draft: {
+          kategori: draft.kategori || analysis.kategori || "Lokalt",
+          tittel: draft.tittel || analysis.tema || cleaned.title || "Ny lokal sak",
+          ingress: draft.ingress || analysis.hovedpoeng || cleaned.ingress || "",
+          tekst: draft.tekst || ""
+        }
+      });
+    } catch (error) {
+      results.push({
+        ok: false,
+        skipped: true,
+        status: "feil",
+        url: candidate.url,
+        error: error.message
       });
     }
-
-    return {
-      ok: true,
-      sourceName,
-      url,
-      feedInfo,
-      checked: candidates.length,
-      draftsReady: results.filter(r => r.ok && !r.skipped).length,
-      results
-    };
-  } catch (error) {
-    console.error("RUN PIPELINE ERROR:", error);
-
-    return {
-      ok: false,
-      error: error.message,
-      sourceName,
-      url,
-      results
-    };
   }
+
+  return {
+    ok: true,
+    sourceName,
+    url,
+    feedInfo,
+    checked: candidates.length,
+    draftsReady: results.filter(r => r.ok && !r.skipped && r.draft).length,
+    results
+  };
 }
 
-async function buildCandidates({ url, html, feedInfo, maxArticles }) {
-  const type = feedInfo?.type || "article";
-
-  if (type === "frontpage" || type === "feed" || type === "list") {
-    const links = extractArticleLinks({
-      url,
-      html,
-      maxLinks: maxArticles
-    });
-
-    return links.slice(0, maxArticles).map(link => ({
-      url: link.url,
-      title: link.title || "",
-      html: ""
-    }));
+async function buildCandidates({ url, html, contentType, feedInfo, maxArticles }) {
+  if (feedInfo.type === "rss") {
+    const rssLinks = extractRssLinks(html, url).slice(0, maxArticles);
+    return rssLinks.map(item => ({ url: item.url, title: item.title, html: "" }));
   }
 
-  return [
-    {
-      url,
-      title: "",
-      html
+  if (feedInfo.type === "frontpage" || feedInfo.type === "list") {
+    const links = extractArticleLinks({ url, html, maxLinks: maxArticles });
+    if (links.length) return links.map(link => ({ url: link.url, title: link.title, html: "" }));
+  }
+
+  return [{ url, html, contentType }];
+}
+
+function extractRssLinks(xml = "", baseUrl = "") {
+  const items = [];
+  const itemRegex = /<item[\s\S]*?<\/item>/gi;
+  const matches = xml.match(itemRegex) || [];
+
+  for (const item of matches) {
+    const link = pickXml(item, "link");
+    const title = pickXml(item, "title");
+    try {
+      if (link) items.push({ url: new URL(link, baseUrl).toString(), title });
+    } catch {}
+  }
+
+  return items;
+}
+
+function pickXml(xml = "", tag = "") {
+  const rx = new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`, "i");
+  const match = xml.match(rx);
+  return match ? String(match[1]).replace(/<!\[CDATA\[|\]\]>/g, "").trim() : "";
+}
+
+async function fetchSourcePage(url) {
+  const res = await fetch(url, {
+    headers: {
+      "User-Agent": "HaldenNaaKildevakt/3.0 kontakt:redaksjon@halden-naa.no",
+      "Accept": "text/html,application/xhtml+xml,application/xml,text/plain"
     }
-  ];
+  });
+
+  if (!res.ok) throw new Error(`Kilden svarte ${res.status}`);
+
+  return {
+    url,
+    contentType: res.headers.get("content-type") || "",
+    html: await res.text()
+  };
 }
 
-/**
- * Denne brukes senere av source-watch.js.
- * Foreløpig lager den bare kladd-resultater,
- * men lagrer ikke i Firestore direkte.
- */
-export async function runPipelineForSource(source = {}) {
-  return await runPipeline({
-    url: source.link || source.url || "",
-    html: source.html || "",
-    sourceName: source.name || source.sourceName || "",
-    instruction: source.instruction || "",
-    maxArticles: source.maxArticles || DEFAULT_MAX_ARTICLES,
-    minScore: source.minScore || DEFAULT_MIN_SCORE
-  });
-}
+module.exports = { runPipelineForSource, runPipeline: runPipelineForSource };

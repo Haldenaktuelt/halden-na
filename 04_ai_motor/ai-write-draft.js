@@ -1,81 +1,67 @@
-import OpenAI from "openai";
+const { callOpenAIJson } = require("./ai-analyze.js");
 
-const client = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
-});
+async function writeDraft(input = {}) {
+  if (!process.env.OPENAI_API_KEY) return fallbackDraft(input);
 
-export async function writeDraft(articleData) {
-  try {
-    const {
-      title = "",
-      ingress = "",
-      content = "",
-      kategori = "Lokalt",
-      source = ""
-    } = articleData;
+  const prompt = `
+Du er redaksjonsassistent for lokalavisen HALDEN NÅ.
 
-    const prompt = `
-Du er journalist i lokalavisen HALDEN NÅ.
+Skriv en kort kladd basert på råstoffet.
 
-Oppgave:
-Skriv en kort, folkelig og rolig lokalavis-artikkel.
+Stil:
+- kort forklart
+- lokalavis
+- rolig og folkelig
+- korte avsnitt
+- ingen clickbait
+- ikke skriv at AI har laget saken
+- ikke finn på fakta
+- ikke list opp dokumentnavn eller vedlegg
 
-REGLER:
-- IKKE kopier råtekst
-- IKKE skriv som AI
-- Korte avsnitt
-- Lett å lese
-- Lokalavis-stil
-- Kort forklart
-- Ingen clickbait
+Maks 100–160 ord.
 
-Kategori:
-${kategori}
+Kategori: ${input.kategori || "Lokalt"}
+Kilde: ${input.sourceName || input.source || ""}
+URL: ${input.sourceUrl || input.url || ""}
 
-Kilde:
-${source}
+Analyse:
+${JSON.stringify(input.analysis || {}, null, 2)}
 
-Tittel:
-${title}
+Tittel: ${input.title || ""}
+Ingress: ${input.ingress || ""}
 
-Ingress:
-${ingress}
-
-Brødtekst:
-${content}
+Råstoff:
+${input.content || ""}
 `;
 
-    const response = await client.chat.completions.create({
-      model: "gpt-4.1-mini",
-      temperature: 0.5,
-      messages: [
-        {
-          role: "system",
-          content: "Du skriver korte og forståelige lokalavis-saker."
-        },
-        {
-          role: "user",
-          content: prompt
-        }
-      ]
-    });
+  const schema = {
+    type: "object",
+    additionalProperties: false,
+    properties: {
+      kategori: { type: "string" },
+      tittel: { type: "string" },
+      ingress: { type: "string" },
+      tekst: { type: "string" }
+    },
+    required: ["kategori", "tittel", "ingress", "tekst"]
+  };
 
-    const article =
-      response.choices?.[0]?.message?.content?.trim() ||
-      "Kunne ikke generere artikkel.";
-
-    return {
-      success: true,
-      kategori,
-      title,
-      article
-    };
-  } catch (error) {
-    console.error("AI WRITE DRAFT ERROR:", error);
-
-    return {
-      success: false,
-      error: error.message
-    };
-  }
+  const draft = await callOpenAIJson(prompt, schema, "halden_na_v12_draft");
+  return { success: true, ...draft };
 }
+
+function fallbackDraft(input = {}) {
+  const title = input.title || input.analysis?.tema || "Ny lokal sak";
+  const ingress = input.ingress || input.analysis?.hovedpoeng || String(input.content || "").slice(0, 150);
+  const tekst = `${ingress}\n\nKort forklart:\n${String(input.content || "").replace(/\s+/g, " ").slice(0, 700)}${String(input.content || "").length > 700 ? "..." : ""}`;
+
+  return {
+    success: true,
+    kategori: input.kategori || input.analysis?.kategori || "Lokalt",
+    tittel: title,
+    ingress,
+    tekst
+  };
+}
+
+module.exports = { writeDraft };
