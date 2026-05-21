@@ -6,19 +6,26 @@ async function writeDraft(input = {}) {
   const prompt = `
 Du er redaksjonsassistent for lokalavisen HALDEN NÅ.
 
-Skriv en kort kladd basert på råstoffet.
+Skriv en NY lokalavis-kladd basert på råstoffet.
 
-Stil:
-- kort forklart
-- lokalavis
-- rolig og folkelig
-- korte avsnitt
-- ingen clickbait
-- ikke skriv at AI har laget saken
-- ikke finn på fakta
-- ikke list opp dokumentnavn eller vedlegg
+VIKTIG:
+- Ikke kopier setninger fra råstoffet.
+- Ikke gjenta ingressen i brødteksten.
+- Ikke skriv "Kort forklart:".
+- Ikke list opp detaljer som ikke er viktige for folk i Halden.
+- Ikke bruk AI-språk.
+- Ikke finn på fakta.
+- Ikke skriv at dette er hentet fra AI.
+- Bruk korte avsnitt.
+- Skriv enkelt, rolig og folkelig.
 
-Maks 100–160 ord.
+Format:
+- Tittel: kort og tydelig
+- Ingress: 1 kort setning
+- Tekst: 2–3 korte avsnitt, maks 120 ord
+
+Vinkel:
+Forklar saken som en lokal redaktør ville gjort det for folk i Halden.
 
 Kategori: ${input.kategori || "Lokalt"}
 Kilde: ${input.sourceName || input.source || ""}
@@ -27,10 +34,10 @@ URL: ${input.sourceUrl || input.url || ""}
 Analyse:
 ${JSON.stringify(input.analysis || {}, null, 2)}
 
+Råstoff:
 Tittel: ${input.title || ""}
 Ingress: ${input.ingress || ""}
-
-Råstoff:
+Tekst:
 ${input.content || ""}
 `;
 
@@ -46,22 +53,67 @@ ${input.content || ""}
     required: ["kategori", "tittel", "ingress", "tekst"]
   };
 
-  const draft = await callOpenAIJson(prompt, schema, "halden_na_v12_draft");
-  return { success: true, ...draft };
+  const draft = await callOpenAIJson(prompt, schema, "halden_na_v12_1_draft");
+
+  return {
+    success: true,
+    kategori: draft.kategori || input.kategori || input.analysis?.kategori || "Lokalt",
+    tittel: cleanLine(draft.tittel || input.analysis?.tema || input.title || "Ny lokal sak", 90),
+    ingress: cleanLine(draft.ingress || input.analysis?.hovedpoeng || input.ingress || "", 180),
+    tekst: cleanArticleText(draft.tekst || "")
+  };
 }
 
 function fallbackDraft(input = {}) {
-  const title = input.title || input.analysis?.tema || "Ny lokal sak";
-  const ingress = input.ingress || input.analysis?.hovedpoeng || String(input.content || "").slice(0, 150);
-  const tekst = `${ingress}\n\nKort forklart:\n${String(input.content || "").replace(/\s+/g, " ").slice(0, 700)}${String(input.content || "").length > 700 ? "..." : ""}`;
+  const title = cleanLine(input.analysis?.tema || input.title || "Ny lokal sak", 90);
+  const ingress = cleanLine(input.analysis?.hovedpoeng || input.ingress || String(input.content || "").slice(0, 140), 180);
+
+  const body = String(input.content || "")
+    .replace(/\s+/g, " ")
+    .replace(input.title || "", "")
+    .replace(input.ingress || "", "")
+    .trim();
 
   return {
     success: true,
     kategori: input.kategori || input.analysis?.kategori || "Lokalt",
     tittel: title,
     ingress,
-    tekst
+    tekst: cleanArticleText(`${ingress}\n\n${body.slice(0, 520)}${body.length > 520 ? "..." : ""}`)
   };
+}
+
+function cleanLine(value = "", max = 160) {
+  return String(value || "")
+    .replace(/\s+/g, " ")
+    .replace(/^kort forklart[:：]?\s*/i, "")
+    .trim()
+    .slice(0, max)
+    .trim();
+}
+
+function cleanArticleText(value = "") {
+  let text = String(value || "")
+    .replace(/^kort forklart[:：]?\s*/gim, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+
+  const paragraphs = text
+    .split(/\n+/)
+    .map(p => p.replace(/\s+/g, " ").trim())
+    .filter(Boolean);
+
+  const deduped = [];
+  const seen = new Set();
+
+  for (const p of paragraphs) {
+    const key = p.toLowerCase().slice(0, 90);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    deduped.push(p);
+  }
+
+  return deduped.slice(0, 3).join("\n\n").trim();
 }
 
 module.exports = { writeDraft };

@@ -26,6 +26,7 @@ async function runSourceWatch() {
   let checked = 0;
   let changed = 0;
   let skipped = 0;
+  let duplicates = 0;
   let draftsCreated = 0;
   const results = [];
 
@@ -35,6 +36,9 @@ async function runSourceWatch() {
     if (s.active === false || !s.link) continue;
 
     checked++;
+
+    const processedHashes = parseStoredList(s.processedHashes || s.lastHashes || s.lastHash || "");
+    const processedUrls = parseStoredList(s.processedUrls || "");
 
     try {
       const pipeline = await runPipelineForSource({
@@ -77,16 +81,19 @@ async function runSourceWatch() {
       }
 
       let sourceDrafts = 0;
-      let latestHash = s.lastHash || "";
+      let latestDraftId = s.lastDraftId || "";
 
       for (const item of draftResults) {
-        const hash = await sha256(item.hashText || JSON.stringify(item.draft));
+        const sourceUrl = normalizeUrl(item.url || s.link || "");
+        const hash = await sha256(item.hashText || `${sourceUrl}\n${item.draft.tittel}\n${item.draft.ingress}`);
 
-        if (s.lastHash && s.lastHash === hash) {
+        if (processedHashes.includes(hash) || processedUrls.includes(sourceUrl)) {
+          duplicates++;
           results.push({
             source: s.name,
-            status: "ingen endring",
-            title: item.draft.tittel
+            status: "duplikat hoppet over",
+            title: item.draft.tittel,
+            url: sourceUrl
           });
           continue;
         }
@@ -103,13 +110,13 @@ async function runSourceWatch() {
           videoUrl: "",
           mediaPlassering: "top",
           kilde: s.name || "Kilde",
-          sourceUrl: item.url || s.link,
+          sourceUrl,
           status: "til_godkjenning",
           dato: new Date().toISOString(),
           tid: nowTime(),
           hovedsak: false,
           aiGenerated: true,
-          aiPipeline: "v12",
+          aiPipeline: "v12.1",
           sourceId: source.id,
           nyhetsverdi: String(item.score || item.analysis?.score || ""),
           tema: item.analysis?.tema || "",
@@ -119,10 +126,13 @@ async function runSourceWatch() {
         await setDocument("kladder", draftId, draftData);
         await setDocument("saker", draftId, draftData);
 
+        processedHashes.unshift(hash);
+        processedUrls.unshift(sourceUrl);
+
         draftsCreated++;
         sourceDrafts++;
         changed++;
-        latestHash = hash;
+        latestDraftId = draftId;
 
         results.push({
           source: s.name,
@@ -135,12 +145,16 @@ async function runSourceWatch() {
       }
 
       await updateSource(source.id, {
-        lastHash: latestHash,
+        lastHash: processedHashes[0] || s.lastHash || "",
+        processedHashes: processedHashes.slice(0, 50).join("|"),
+        processedUrls: processedUrls.slice(0, 50).join("|"),
         lastChecked: new Date().toISOString(),
         lastResult: sourceDrafts
-          ? `V12 kladd laget: ${sourceDrafts}`
-          : "Ingen ny relevant sak funnet.",
-        lastDraftId: results.find(r => r.source === s.name && r.draftId)?.draftId || s.lastDraftId || ""
+          ? `V12.1 kladd laget: ${sourceDrafts}`
+          : duplicates
+            ? "Ingen ny sak. Duplikater hoppet over."
+            : "Ingen ny relevant sak funnet.",
+        lastDraftId: latestDraftId
       });
     } catch (err) {
       console.error("Kilde feilet:", s.name, err);
@@ -155,15 +169,35 @@ async function runSourceWatch() {
     }
   }
 
-  console.log("source-watch v12 result", { checked, changed, skipped, draftsCreated, results });
+  console.log("source-watch v12.1 result", {
+    checked,
+    changed,
+    skipped,
+    duplicates,
+    draftsCreated,
+    results
+  });
 
   return {
     checked,
     changed,
     skipped,
+    duplicates,
     draftsCreated,
     results
   };
+}
+
+function parseStoredList(value = "") {
+  if (Array.isArray(value)) return value.filter(Boolean).map(String);
+  return String(value || "")
+    .split("|")
+    .map(v => v.trim())
+    .filter(Boolean);
+}
+
+function normalizeUrl(value = "") {
+  return String(value || "").split("#")[0].replace(/\/$/, "").trim();
 }
 
 async function getCollection(collectionName) {
