@@ -1,12 +1,13 @@
 const { detectFeed } = require("./detect-feed.js");
 const { extractArticleLinks } = require("./extract-article-links.js");
 const { extractDocumentLinks } = require("./extract-document-links.js");
+const { fetchDocumentText } = require("./fetch-document-text.js");
 const { cleanContent } = require("./clean-content.js");
 const { analyzeArticle } = require("./ai-analyze.js");
 const { writeDraft } = require("./ai-write-draft.js");
 
 const DEFAULT_MAX_ARTICLES = 5;
-const DEFAULT_MAX_DOCUMENTS = 8;
+const DEFAULT_MAX_DOCUMENTS = 5;
 const DEFAULT_MIN_SCORE = 6;
 
 async function runPipelineForSource(source = {}) {
@@ -43,25 +44,60 @@ async function runPipelineForSource(source = {}) {
 
   for (const candidate of candidates) {
     try {
-      const page = candidate.html ? candidate : await fetchSourcePage(candidate.url);
-
       if (candidate.kind === "document") {
-        results.push({
-          ok: true,
-          skipped: true,
-          status: "document_found",
-          reason: "Dokumentlenke funnet. Tekstlesing fra dokument kommer i neste steg.",
+        const documentText = await fetchDocumentText({
           url: candidate.url,
+          title: candidate.title,
+          type: candidate.type
+        });
+
+        if (!documentText.ok) {
+          results.push({
+            ok: true,
+            skipped: true,
+            status: "document_read_failed",
+            reason: documentText.reason || documentText.error || "Dokument kunne ikke leses.",
+            url: candidate.url,
+            document: candidate,
+            hashText: `${candidate.url}\n${candidate.title || ""}`
+          });
+          continue;
+        }
+
+        const cleaned = {
+          url: candidate.url,
+          sourceName,
+          title: candidate.title || documentText.title || "Kommunalt dokument",
+          ingress: "",
+          content: documentText.content || documentText.text || "",
+          text: documentText.content || documentText.text || "",
+          quality: documentText.content?.length > 800 ? 8 : 6,
+          document: documentText
+        };
+
+        const result = await analyzeAndWrite({
+          cleaned,
+          url: candidate.url,
+          sourceName,
+          instruction,
+          minScore,
+          extraHash: `${candidate.url}\n${candidate.title || ""}`
+        });
+
+        results.push({
+          ...result,
           document: {
             url: candidate.url,
             title: candidate.title || "",
-            type: candidate.type || "document",
-            score: candidate.score || 0
-          },
-          hashText: `${candidate.url}\n${candidate.title || ""}`
+            type: candidate.type || documentText.type || "document",
+            pages: documentText.pages || 0
+          }
         });
+
         continue;
       }
+
+      const page = candidate.html ? candidate : await fetchSourcePage(candidate.url);
 
       const cleaned = cleanContent({
         url: page.url || candidate.url,
@@ -88,14 +124,49 @@ async function runPipelineForSource(source = {}) {
 
         if (docs.length) {
           for (const doc of docs.slice(0, 3)) {
-            results.push({
-              ok: true,
-              skipped: true,
-              status: "document_found",
-              reason: "Fant dokumentlenke på kommune-/høringsside. Dokumentlesing kommer i neste steg.",
+            const documentText = await fetchDocumentText(doc);
+
+            if (!documentText.ok) {
+              results.push({
+                ok: true,
+                skipped: true,
+                status: "document_read_failed",
+                reason: documentText.reason || documentText.error || "Dokument kunne ikke leses.",
+                url: doc.url,
+                document: doc,
+                hashText: `${doc.url}\n${doc.title || ""}`
+              });
+              continue;
+            }
+
+            const cleanedDoc = {
               url: doc.url,
-              document: doc,
-              hashText: `${doc.url}\n${doc.title || ""}`
+              sourceName,
+              title: doc.title || documentText.title || "Kommunalt dokument",
+              ingress: "",
+              content: documentText.content || documentText.text || "",
+              text: documentText.content || documentText.text || "",
+              quality: documentText.content?.length > 800 ? 8 : 6,
+              document: documentText
+            };
+
+            const result = await analyzeAndWrite({
+              cleaned: cleanedDoc,
+              url: doc.url,
+              sourceName,
+              instruction,
+              minScore,
+              extraHash: `${doc.url}\n${doc.title || ""}`
+            });
+
+            results.push({
+              ...result,
+              document: {
+                url: doc.url,
+                title: doc.title || "",
+                type: doc.type || documentText.type || "document",
+                pages: documentText.pages || 0
+              }
             });
           }
           continue;
@@ -113,58 +184,15 @@ async function runPipelineForSource(source = {}) {
         continue;
       }
 
-      const analysis = await analyzeArticle({
-        title: cleaned.title,
-        ingress: cleaned.ingress,
-        content: cleaned.content,
-        url: page.url || candidate.url,
-        sourceName,
-        instruction
-      });
-
-      if (!analysis.worthy || Number(analysis.score || 0) < minScore) {
-        results.push({
-          ok: true,
-          skipped: true,
-          status: "ikke_god_nok",
-          reason: analysis.reason || "Lav nyhetsverdi.",
-          score: Number(analysis.score || 0),
-          kategori: analysis.kategori || "",
-          url: page.url || candidate.url,
-          hashText,
-          cleaned,
-          analysis
-        });
-        continue;
-      }
-
-      const draft = await writeDraft({
-        title: cleaned.title,
-        ingress: cleaned.ingress,
-        content: cleaned.content,
-        kategori: analysis.kategori || "Lokalt",
-        sourceName,
-        sourceUrl: page.url || candidate.url,
-        analysis
-      });
-
-      results.push({
-        ok: true,
-        skipped: false,
-        status: "kladd_klar",
-        score: Number(analysis.score || 0),
-        kategori: draft.kategori || analysis.kategori || "Lokalt",
-        url: page.url || candidate.url,
-        hashText,
+      const result = await analyzeAndWrite({
         cleaned,
-        analysis,
-        draft: {
-          kategori: draft.kategori || analysis.kategori || "Lokalt",
-          tittel: draft.tittel || analysis.tema || cleaned.title || "Ny lokal sak",
-          ingress: draft.ingress || analysis.hovedpoeng || cleaned.ingress || "",
-          tekst: draft.tekst || ""
-        }
+        url: page.url || candidate.url,
+        sourceName,
+        instruction,
+        minScore
       });
+
+      results.push(result);
     } catch (error) {
       results.push({
         ok: false,
@@ -182,9 +210,66 @@ async function runPipelineForSource(source = {}) {
     url,
     feedInfo,
     checked: candidates.length,
-    documentsFound: results.filter(r => r.status === "document_found").length,
+    documentsRead: results.filter(r => r.document && !r.skipped).length,
+    documentReadFailed: results.filter(r => r.status === "document_read_failed").length,
     draftsReady: results.filter(r => r.ok && !r.skipped && r.draft).length,
     results
+  };
+}
+
+async function analyzeAndWrite({ cleaned, url, sourceName, instruction, minScore, extraHash = "" }) {
+  const hashText = `${extraHash}\n${cleaned.title}\n${cleaned.ingress}\n${cleaned.content}`.slice(0, 4000);
+
+  const analysis = await analyzeArticle({
+    title: cleaned.title,
+    ingress: cleaned.ingress,
+    content: cleaned.content,
+    url,
+    sourceName,
+    instruction
+  });
+
+  if (!analysis.worthy || Number(analysis.score || 0) < minScore) {
+    return {
+      ok: true,
+      skipped: true,
+      status: "ikke_god_nok",
+      reason: analysis.reason || "Lav nyhetsverdi.",
+      score: Number(analysis.score || 0),
+      kategori: analysis.kategori || "",
+      url,
+      hashText,
+      cleaned,
+      analysis
+    };
+  }
+
+  const draft = await writeDraft({
+    title: cleaned.title,
+    ingress: cleaned.ingress,
+    content: cleaned.content,
+    kategori: analysis.kategori || "Kommune",
+    sourceName,
+    sourceUrl: url,
+    analysis
+  });
+
+  return {
+    ok: true,
+    skipped: false,
+    status: "kladd_klar",
+    score: Number(analysis.score || 0),
+    kategori: draft.kategori || analysis.kategori || "Kommune",
+    url,
+    hashText,
+    cleaned,
+    analysis,
+    draft: {
+      kategori: draft.kategori || analysis.kategori || "Kommune",
+      tittel: draft.tittel || analysis.tema || cleaned.title || "Ny lokal sak",
+      ingress: draft.ingress || analysis.hovedpoeng || cleaned.ingress || "",
+      tekst: draft.tekst || ""
+    }
   };
 }
 
