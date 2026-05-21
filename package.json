@@ -9,5 +9,8 @@
   },
   "devDependencies": {
     "netlify-cli": "^17.38.1"
+  },
+  "dependencies": {
+    "cheerio": "^1.2.0"
   }
 }
