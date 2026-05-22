@@ -4,6 +4,7 @@ const { extractDocumentLinks } = require("./extract-document-links.js");
 const { fetchDocumentText } = require("./fetch-document-text.js");
 const { cleanContent } = require("./clean-content.js");
 const { analyzeArticle } = require("./ai-analyze.js");
+const { analyzeDocument } = require("./analyze-document.js");
 const { writeDraft } = require("./ai-write-draft.js");
 
 const DEFAULT_MAX_ARTICLES = 5;
@@ -42,8 +43,10 @@ async function runPipelineForSource(source = {}) {
   });
 
   const results = [];
+  const isMunicipalityRoot = isMunicipalitySource({ url, sourceName, instruction, text: firstPage.html });
+  const activeCandidates = candidates.slice(0, isMunicipalityRoot ? 1 : candidates.length);
 
-  for (const candidate of candidates.slice(0, isMunicipalitySource({ url, sourceName, instruction, text: firstPage.html }) ? 1 : candidates.length)) {
+  for (const candidate of activeCandidates) {
     try {
       if (candidate.kind === "document") {
         const documentResult = await handleDocumentCandidate({
@@ -109,7 +112,7 @@ async function runPipelineForSource(source = {}) {
         continue;
       }
 
-      const result = await analyzeAndWrite({
+      const result = await analyzeAndWriteArticle({
         cleaned,
         url: page.url || candidate.url,
         sourceName,
@@ -163,38 +166,88 @@ async function handleDocumentCandidate({ candidate, sourceName, instruction, min
 
   const content = String(documentText.content || documentText.text || "").slice(0, MAX_AI_CONTENT_CHARS);
 
-  const cleaned = {
-    url: candidate.url,
-    sourceName,
+  const documentAnalysis = await analyzeDocument({
     title: candidate.title || documentText.title || "Kommunalt dokument",
-    ingress: "",
-    content,
     text: content,
-    quality: content.length > 800 ? 8 : 6,
-    document: documentText
-  };
-
-  const result = await analyzeAndWrite({
-    cleaned,
     url: candidate.url,
     sourceName,
     instruction,
-    minScore,
-    extraHash: `${candidate.url}\n${candidate.title || ""}`
+    type: candidate.type || documentText.type || "pdf"
+  });
+
+  if (!documentAnalysis.isNewsworthy || Number(documentAnalysis.score || 0) < minScore) {
+    return {
+      ok: true,
+      skipped: true,
+      status: "document_not_newsworthy",
+      reason: documentAnalysis.reason || "Dokumentet ga ikke høy nok nyhetsverdi.",
+      score: Number(documentAnalysis.score || 0),
+      kategori: documentAnalysis.category || "Kommune",
+      url: candidate.url,
+      hashText: `${candidate.url}\n${candidate.title || ""}\n${content.slice(0, 2000)}`,
+      document: {
+        url: candidate.url,
+        title: candidate.title || "",
+        type: candidate.type || documentText.type || "document",
+        pages: documentText.pages || 0
+      },
+      documentAnalysis
+    };
+  }
+
+  const draft = await writeDraft({
+    title: documentAnalysis.suggestedTitle || candidate.title || "Kommunal sak",
+    ingress: documentAnalysis.suggestedIngress || "",
+    content,
+    kategori: documentAnalysis.category || "Kommune",
+    sourceName,
+    sourceUrl: candidate.url,
+    documentAnalysis
   });
 
   return {
-    ...result,
+    ok: true,
+    skipped: false,
+    status: "kladd_klar",
+    score: Number(documentAnalysis.score || 0),
+    kategori: draft.kategori || documentAnalysis.category || "Kommune",
+    url: candidate.url,
+    hashText: `${candidate.url}\n${documentAnalysis.topic}\n${documentAnalysis.location}\n${content.slice(0, 2000)}`,
+    cleaned: {
+      url: candidate.url,
+      sourceName,
+      title: documentAnalysis.suggestedTitle || candidate.title || "Kommunal sak",
+      ingress: documentAnalysis.suggestedIngress || "",
+      content,
+      text: content,
+      quality: content.length > 800 ? 8 : 6,
+      document: documentText
+    },
+    analysis: {
+      worthy: documentAnalysis.isNewsworthy,
+      score: documentAnalysis.score,
+      kategori: documentAnalysis.category || "Kommune",
+      tema: documentAnalysis.topic || documentAnalysis.suggestedTitle || "",
+      hovedpoeng: documentAnalysis.suggestedIngress || documentAnalysis.importance || "",
+      reason: documentAnalysis.reason || ""
+    },
+    documentAnalysis,
     document: {
       url: candidate.url,
       title: candidate.title || "",
       type: candidate.type || documentText.type || "document",
       pages: documentText.pages || 0
+    },
+    draft: {
+      kategori: draft.kategori || documentAnalysis.category || "Kommune",
+      tittel: draft.tittel || documentAnalysis.suggestedTitle || "Kommunal sak",
+      ingress: draft.ingress || documentAnalysis.suggestedIngress || "",
+      tekst: draft.tekst || ""
     }
   };
 }
 
-async function analyzeAndWrite({ cleaned, url, sourceName, instruction, minScore, extraHash = "" }) {
+async function analyzeAndWriteArticle({ cleaned, url, sourceName, instruction, minScore, extraHash = "" }) {
   const hashText = `${extraHash}\n${cleaned.title}\n${cleaned.ingress}\n${cleaned.content}`.slice(0, 4000);
 
   const analysis = await analyzeArticle({
@@ -225,7 +278,7 @@ async function analyzeAndWrite({ cleaned, url, sourceName, instruction, minScore
     title: cleaned.title,
     ingress: cleaned.ingress,
     content: cleaned.content,
-    kategori: analysis.kategori || "Kommune",
+    kategori: analysis.kategori || "Lokalt",
     sourceName,
     sourceUrl: url,
     analysis
@@ -236,13 +289,13 @@ async function analyzeAndWrite({ cleaned, url, sourceName, instruction, minScore
     skipped: false,
     status: "kladd_klar",
     score: Number(analysis.score || 0),
-    kategori: draft.kategori || analysis.kategori || "Kommune",
+    kategori: draft.kategori || analysis.kategori || "Lokalt",
     url,
     hashText,
     cleaned,
     analysis,
     draft: {
-      kategori: draft.kategori || analysis.kategori || "Kommune",
+      kategori: draft.kategori || analysis.kategori || "Lokalt",
       tittel: draft.tittel || analysis.tema || cleaned.title || "Ny lokal sak",
       ingress: draft.ingress || analysis.hovedpoeng || cleaned.ingress || "",
       tekst: draft.tekst || ""
