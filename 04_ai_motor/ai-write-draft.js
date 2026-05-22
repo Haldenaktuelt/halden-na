@@ -4,10 +4,7 @@ async function writeDraft(input = {}) {
   if (!process.env.OPENAI_API_KEY) return fallbackDraft(input);
 
   const documentAnalysis = input.documentAnalysis || null;
-
-  const prompt = documentAnalysis
-    ? documentPrompt(input, documentAnalysis)
-    : articlePrompt(input);
+  const prompt = documentAnalysis ? documentPrompt(input, documentAnalysis) : articlePrompt(input);
 
   const schema = {
     type: "object",
@@ -21,13 +18,13 @@ async function writeDraft(input = {}) {
     required: ["kategori", "tittel", "ingress", "tekst"]
   };
 
-  const draft = await callOpenAIJson(prompt, schema, "halden_na_v14_3_draft");
+  const draft = await callOpenAIJson(prompt, schema, "halden_na_v14_4_editorial_draft");
 
   return {
     success: true,
     kategori: draft.kategori || input.kategori || input.analysis?.kategori || documentAnalysis?.category || "Lokalt",
-    tittel: cleanLine(draft.tittel || documentAnalysis?.suggestedTitle || input.analysis?.tema || input.title || "Ny lokal sak", 95),
-    ingress: cleanLine(draft.ingress || documentAnalysis?.suggestedIngress || input.analysis?.hovedpoeng || input.ingress || "", 190),
+    tittel: cleanTitle(draft.tittel || documentAnalysis?.suggestedTitle || input.analysis?.tema || input.title || "Ny lokal sak"),
+    ingress: cleanLine(draft.ingress || documentAnalysis?.suggestedIngress || input.analysis?.hovedpoeng || input.ingress || "", 210),
     tekst: cleanArticleText(draft.tekst || "", draft.ingress || input.ingress || "")
   };
 }
@@ -36,34 +33,32 @@ function documentPrompt(input = {}, documentAnalysis = {}) {
   return `
 Du er redaksjonsassistent for lokalavisen HALDEN NÅ.
 
-Du skal skrive en kort lokalavis-kladd basert på en strukturert analyse av et kommunalt dokument.
+Skriv en kort, folkelig lokalavis-kladd basert på dokumentanalysen.
 
-VIKTIG:
-- Skriv som en lokalavis, ikke som et saksdokument.
-- Ikke skriv om arkivkode, journalnummer, PDF-størrelse eller saksbehandler.
-- Ikke start med dokumenttittelen hvis den er teknisk.
-- Ikke bruk "Kort forklart:".
+ABSOLUTTE REGLER:
+- Ikke bruk dokumentnavn som tittel.
+- Ikke skriv "Saksfremlegg", "protokoll", "PDF", "arkivkode", "journalnummer", "saksbehandler" eller filstørrelse.
+- Ikke skriv "Kort forklart:".
 - Ikke bruk "NY UTVIKLING".
 - Ikke finn på fakta.
 - Ikke overdriv.
-- Skriv enkelt og folkelig.
-- Maks 120–150 ord i brødteksten.
+- Ikke skriv mer enn 130 ord i brødteksten.
+- Skriv som en lokalavis, ikke som kommunen.
 
-Format:
-- Tittel: Hva skjer?
-- Ingress: Hvorfor bør folk bry seg?
-- Tekst: 2 korte avsnitt.
-  Avsnitt 1: hva saken gjelder.
-  Avsnitt 2: hva det betyr / hva folk kan gjøre.
+Tittel: Hva saken faktisk handler om.
+Ingress: Hvorfor dette er relevant lokalt.
+Brødtekst: 2 korte avsnitt:
+1. Hva saken gjelder.
+2. Hva det betyr / hva som skjer videre / om folk kan gi innspill.
 
 Kategori: ${documentAnalysis.category || input.kategori || "Kommune"}
 Kilde: ${input.sourceName || input.source || ""}
 URL: ${input.sourceUrl || input.url || ""}
 
-DOKUMENTANALYSE:
+DOKUMENTFORSTÅELSE:
 ${JSON.stringify(documentAnalysis, null, 2)}
 
-Kort utdrag fra dokument:
+Utdrag fra dokumentet kun for faktasjekk:
 ${trimForPrompt(input.content || "", 1800)}
 `;
 }
@@ -71,27 +66,9 @@ ${trimForPrompt(input.content || "", 1800)}
 function articlePrompt(input = {}) {
   return `
 Du er redaksjonsassistent for lokalavisen HALDEN NÅ.
-
-Du skal lage en REDAKSJONELL KLADD, ikke et sammendrag.
-
-VIKTIGE REGLER:
-- Ikke kopier setninger fra kilden.
-- Ikke gjenta ingressen i brødteksten.
-- Ikke start brødteksten med samme fakta som ingressen.
-- Ikke bruk "Kort forklart:".
-- Ikke bruk "NY UTVIKLING".
-- Ikke skriv lange avsnitt.
-- Ikke skriv mer enn 90–120 ord i brødteksten.
-- Ikke ta med uviktige detaljer.
-- Ikke finn på fakta.
-- Ikke skriv at AI har skrevet teksten.
-
-Format:
-- tittel: kort, tydelig og nøktern
-- ingress: én setning som forklarer hovedpoenget
-- tekst: 2 korte avsnitt
-
-Skriv på norsk bokmål, folkelig og rolig.
+Lag en redaksjonell kladd, ikke et sammendrag.
+Ikke kopier setninger. Ikke gjenta ingressen. Ikke bruk "Kort forklart:".
+Format: tittel, ingress, tekst med 2 korte avsnitt.
 
 Kategori: ${input.kategori || "Lokalt"}
 Kilde: ${input.sourceName || input.source || ""}
@@ -100,28 +77,42 @@ URL: ${input.sourceUrl || input.url || ""}
 Analyse:
 ${JSON.stringify(input.analysis || {}, null, 2)}
 
-RÅSTOFF:
-Tittel: ${input.title || ""}
-Ingress: ${input.ingress || ""}
-Tekst:
+Råstoff:
 ${trimForPrompt(input.content || "", 2600)}
 `;
 }
 
 function fallbackDraft(input = {}) {
   const doc = input.documentAnalysis || {};
-  const title = cleanLine(doc.suggestedTitle || input.analysis?.tema || input.title || "Ny lokal sak", 95);
-  const ingress = cleanLine(doc.suggestedIngress || input.analysis?.hovedpoeng || input.ingress || String(input.content || "").slice(0, 140), 190);
-
-  const body = doc.proposal || doc.importance || String(input.content || "").slice(0, 520);
+  const title = cleanTitle(doc.suggestedTitle || input.analysis?.tema || input.title || "Ny lokal sak");
+  const ingress = cleanLine(doc.suggestedIngress || input.analysis?.hovedpoeng || input.ingress || String(input.content || "").slice(0, 140), 210);
+  const body = [doc.proposal, doc.importance, doc.publicAction].filter(Boolean).join("\n\n");
 
   return {
     success: true,
     kategori: input.kategori || doc.category || input.analysis?.kategori || "Lokalt",
     tittel: title,
     ingress,
-    tekst: cleanArticleText(`${body}\n\n${doc.publicAction || ""}`, ingress)
+    tekst: cleanArticleText(body || String(input.content || "").slice(0, 520), ingress)
   };
+}
+
+function cleanTitle(value = "") {
+  let title = cleanLine(value, 105)
+    .replace(/\bSaksfremlegg\b/gi, "")
+    .replace(/\bSaksframlegg\b/gi, "")
+    .replace(/\bmed protokoll\b/gi, "")
+    .replace(/\(.*?pdf.*?\)/gi, "")
+    .replace(/\bPDF\b/gi, "")
+    .replace(/\b\d+\s?kB\b/gi, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!title || /(arkiv|journal|saksbehandler|protokoll|vedlegg)/i.test(title)) {
+    title = "Kommunal sak i Halden forklart enkelt";
+  }
+
+  return title;
 }
 
 function trimForPrompt(value = "", max = 2600) {
@@ -130,14 +121,7 @@ function trimForPrompt(value = "", max = 2600) {
 }
 
 function cleanLine(value = "", max = 160) {
-  return String(value || "")
-    .replace(/\s+/g, " ")
-    .replace(/^kort forklart[:：]?\s*/i, "")
-    .replace(/^ny utvikling[:：]?\s*/i, "")
-    .replace(/\b(pdf|docx|xlsx)\b/gi, "")
-    .trim()
-    .slice(0, max)
-    .trim();
+  return String(value || "").replace(/\s+/g, " ").replace(/^kort forklart[:：]?\s*/i, "").replace(/^ny utvikling[:：]?\s*/i, "").replace(/\.pdf|\.docx|\.xlsx/gi, "").trim().slice(0, max).trim();
 }
 
 function cleanArticleText(value = "", ingress = "") {
@@ -147,26 +131,24 @@ function cleanArticleText(value = "", ingress = "") {
     .replace(/arkivkode[:\s\S]{0,80}/gi, "")
     .replace(/arkivsaksnr[:\s\S]{0,80}/gi, "")
     .replace(/journal\s*dato[:\s\S]{0,80}/gi, "")
+    .replace(/\bSaksfremlegg\b/gi, "")
+    .replace(/\bSaksframlegg\b/gi, "")
+    .replace(/\bPDF\b/gi, "")
+    .replace(/\b\d+\s?kB\b/gi, "")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 
   const ingressKey = normalizeForCompare(ingress).slice(0, 80);
-
-  const paragraphs = text
-    .split(/\n+/)
-    .map(p => p.replace(/\s+/g, " ").trim())
-    .filter(Boolean)
-    .filter(p => {
-      const key = normalizeForCompare(p);
-      if (!key) return false;
-      if (ingressKey && key.startsWith(ingressKey.slice(0, 45))) return false;
-      if (/(arkivkode|arkivsak|journal|saksbehandler|pdf \d|kb\b)/i.test(p)) return false;
-      return true;
-    });
+  const paragraphs = text.split(/\n+/).map(p => p.replace(/\s+/g, " ").trim()).filter(Boolean).filter(p => {
+    const key = normalizeForCompare(p);
+    if (!key) return false;
+    if (ingressKey && key.startsWith(ingressKey.slice(0, 45))) return false;
+    if (/(arkivkode|arkivsak|journal|saksbehandler|pdf \d|kb\b|protokoll)/i.test(p)) return false;
+    return true;
+  });
 
   const deduped = [];
   const seen = new Set();
-
   for (const p of paragraphs) {
     const key = normalizeForCompare(p).slice(0, 90);
     if (seen.has(key)) continue;
@@ -178,11 +160,7 @@ function cleanArticleText(value = "", ingress = "") {
 }
 
 function normalizeForCompare(value = "") {
-  return String(value || "")
-    .toLowerCase()
-    .replace(/[^\p{L}\p{N}]+/gu, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+  return String(value || "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").replace(/\s+/g, " ").trim();
 }
 
 module.exports = { writeDraft };

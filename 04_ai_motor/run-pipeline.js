@@ -23,24 +23,8 @@ async function runPipelineForSource(source = {}) {
   if (!url) return { ok: false, error: "Mangler URL.", results: [] };
 
   const firstPage = await fetchSourcePage(url);
-  const feedInfo = detectFeed({
-    url,
-    html: firstPage.html,
-    contentType: firstPage.contentType,
-    sourceName,
-    instruction
-  });
-
-  const candidates = await buildCandidates({
-    url,
-    html: firstPage.html,
-    contentType: firstPage.contentType,
-    feedInfo,
-    maxArticles,
-    maxDocuments,
-    sourceName,
-    instruction
-  });
+  const feedInfo = detectFeed({ url, html: firstPage.html, contentType: firstPage.contentType, sourceName, instruction });
+  const candidates = await buildCandidates({ url, html: firstPage.html, contentType: firstPage.contentType, feedInfo, maxArticles, maxDocuments, sourceName, instruction });
 
   const results = [];
   const isMunicipalityRoot = isMunicipalitySource({ url, sourceName, instruction, text: firstPage.html });
@@ -49,86 +33,30 @@ async function runPipelineForSource(source = {}) {
   for (const candidate of activeCandidates) {
     try {
       if (candidate.kind === "document") {
-        const documentResult = await handleDocumentCandidate({
-          candidate,
-          sourceName,
-          instruction,
-          minScore
-        });
-
-        results.push(documentResult);
+        results.push(await handleDocumentCandidate({ candidate, sourceName, instruction, minScore }));
         continue;
       }
 
       const page = candidate.html ? candidate : await fetchSourcePage(candidate.url);
-
-      const cleaned = cleanContent({
-        url: page.url || candidate.url,
-        html: page.html || "",
-        sourceName,
-        instruction
-      });
-
+      const cleaned = cleanContent({ url: page.url || candidate.url, html: page.html || "", sourceName, instruction });
       const hashText = `${cleaned.title}\n${cleaned.ingress}\n${cleaned.content}`.slice(0, 3000);
       const isMunicipality = isMunicipalitySource({ url: page.url || candidate.url, sourceName, instruction, text: hashText });
       const minLength = isMunicipality ? 90 : 160;
       const minQuality = isMunicipality ? 3 : 4;
 
       if (!cleaned.content || cleaned.content.length < minLength || cleaned.quality < minQuality) {
-        const docs = isMunicipality
-          ? extractDocumentLinks({
-              url: page.url || candidate.url,
-              html: page.html || "",
-              sourceName,
-              instruction,
-              maxDocuments: 1
-            })
-          : [];
-
+        const docs = isMunicipality ? extractDocumentLinks({ url: page.url || candidate.url, html: page.html || "", sourceName, instruction, maxDocuments: 1 }) : [];
         if (docs.length) {
-          const documentResult = await handleDocumentCandidate({
-            candidate: {
-              kind: "document",
-              ...docs[0]
-            },
-            sourceName,
-            instruction,
-            minScore
-          });
-
-          results.push(documentResult);
+          results.push(await handleDocumentCandidate({ candidate: { kind: "document", ...docs[0] }, sourceName, instruction, minScore }));
           continue;
         }
-
-        results.push({
-          ok: true,
-          skipped: true,
-          status: "for_lite_innhold",
-          reason: "For lite rent innhold etter rensing.",
-          url: page.url || candidate.url,
-          hashText,
-          cleaned
-        });
+        results.push({ ok: true, skipped: true, status: "for_lite_innhold", reason: "For lite rent innhold etter rensing.", url: page.url || candidate.url, hashText, cleaned });
         continue;
       }
 
-      const result = await analyzeAndWriteArticle({
-        cleaned,
-        url: page.url || candidate.url,
-        sourceName,
-        instruction,
-        minScore
-      });
-
-      results.push(result);
+      results.push(await analyzeAndWriteArticle({ cleaned, url: page.url || candidate.url, sourceName, instruction, minScore }));
     } catch (error) {
-      results.push({
-        ok: false,
-        skipped: true,
-        status: "feil",
-        url: candidate.url,
-        error: error.message
-      });
+      results.push({ ok: false, skipped: true, status: "feil", url: candidate.url, error: error.message });
     }
   }
 
@@ -146,64 +74,20 @@ async function runPipelineForSource(source = {}) {
 }
 
 async function handleDocumentCandidate({ candidate, sourceName, instruction, minScore }) {
-  const documentText = await fetchDocumentText({
-    url: candidate.url,
-    title: candidate.title,
-    type: candidate.type
-  });
+  const documentText = await fetchDocumentText({ url: candidate.url, title: candidate.title, type: candidate.type });
 
   if (!documentText.ok) {
-    return {
-      ok: true,
-      skipped: true,
-      status: "document_read_failed",
-      reason: documentText.reason || documentText.error || "Dokument kunne ikke leses.",
-      url: candidate.url,
-      document: candidate,
-      hashText: `${candidate.url}\n${candidate.title || ""}`
-    };
+    return { ok: true, skipped: true, status: "document_read_failed", reason: documentText.reason || documentText.error || "Dokument kunne ikke leses.", url: candidate.url, document: candidate, hashText: `${candidate.url}\n${candidate.title || ""}` };
   }
 
   const content = String(documentText.content || documentText.text || "").slice(0, MAX_AI_CONTENT_CHARS);
-
-  const documentAnalysis = await analyzeDocument({
-    title: candidate.title || documentText.title || "Kommunalt dokument",
-    text: content,
-    url: candidate.url,
-    sourceName,
-    instruction,
-    type: candidate.type || documentText.type || "pdf"
-  });
+  const documentAnalysis = await analyzeDocument({ title: candidate.title || documentText.title || "Kommunalt dokument", text: content, url: candidate.url, sourceName, instruction, type: candidate.type || documentText.type || "pdf" });
 
   if (!documentAnalysis.isNewsworthy || Number(documentAnalysis.score || 0) < minScore) {
-    return {
-      ok: true,
-      skipped: true,
-      status: "document_not_newsworthy",
-      reason: documentAnalysis.reason || "Dokumentet ga ikke høy nok nyhetsverdi.",
-      score: Number(documentAnalysis.score || 0),
-      kategori: documentAnalysis.category || "Kommune",
-      url: candidate.url,
-      hashText: `${candidate.url}\n${candidate.title || ""}\n${content.slice(0, 2000)}`,
-      document: {
-        url: candidate.url,
-        title: candidate.title || "",
-        type: candidate.type || documentText.type || "document",
-        pages: documentText.pages || 0
-      },
-      documentAnalysis
-    };
+    return { ok: true, skipped: true, status: "document_not_newsworthy", reason: documentAnalysis.reason || "Dokumentet ga ikke høy nok nyhetsverdi.", score: Number(documentAnalysis.score || 0), kategori: documentAnalysis.category || "Kommune", url: candidate.url, hashText: `${candidate.url}\n${candidate.title || ""}\n${content.slice(0, 2000)}`, document: { url: candidate.url, title: candidate.title || "", type: candidate.type || documentText.type || "document", pages: documentText.pages || 0 }, documentAnalysis };
   }
 
-  const draft = await writeDraft({
-    title: documentAnalysis.suggestedTitle || candidate.title || "Kommunal sak",
-    ingress: documentAnalysis.suggestedIngress || "",
-    content,
-    kategori: documentAnalysis.category || "Kommune",
-    sourceName,
-    sourceUrl: candidate.url,
-    documentAnalysis
-  });
+  const draft = await writeDraft({ title: documentAnalysis.suggestedTitle || candidate.title || "Kommunal sak", ingress: documentAnalysis.suggestedIngress || "", content, kategori: documentAnalysis.category || "Kommune", sourceName, sourceUrl: candidate.url, documentAnalysis });
 
   return {
     ok: true,
@@ -213,126 +97,33 @@ async function handleDocumentCandidate({ candidate, sourceName, instruction, min
     kategori: draft.kategori || documentAnalysis.category || "Kommune",
     url: candidate.url,
     hashText: `${candidate.url}\n${documentAnalysis.topic}\n${documentAnalysis.location}\n${content.slice(0, 2000)}`,
-    cleaned: {
-      url: candidate.url,
-      sourceName,
-      title: documentAnalysis.suggestedTitle || candidate.title || "Kommunal sak",
-      ingress: documentAnalysis.suggestedIngress || "",
-      content,
-      text: content,
-      quality: content.length > 800 ? 8 : 6,
-      document: documentText
-    },
-    analysis: {
-      worthy: documentAnalysis.isNewsworthy,
-      score: documentAnalysis.score,
-      kategori: documentAnalysis.category || "Kommune",
-      tema: documentAnalysis.topic || documentAnalysis.suggestedTitle || "",
-      hovedpoeng: documentAnalysis.suggestedIngress || documentAnalysis.importance || "",
-      reason: documentAnalysis.reason || ""
-    },
+    cleaned: { url: candidate.url, sourceName, title: documentAnalysis.suggestedTitle || candidate.title || "Kommunal sak", ingress: documentAnalysis.suggestedIngress || "", content, text: content, quality: content.length > 800 ? 8 : 6, document: documentText },
+    analysis: { worthy: documentAnalysis.isNewsworthy, score: documentAnalysis.score, kategori: documentAnalysis.category || "Kommune", tema: documentAnalysis.suggestedTitle || documentAnalysis.topic || "", hovedpoeng: documentAnalysis.suggestedIngress || documentAnalysis.importance || "", reason: documentAnalysis.reason || "" },
     documentAnalysis,
-    document: {
-      url: candidate.url,
-      title: candidate.title || "",
-      type: candidate.type || documentText.type || "document",
-      pages: documentText.pages || 0
-    },
-    draft: {
-      kategori: draft.kategori || documentAnalysis.category || "Kommune",
-      tittel: draft.tittel || documentAnalysis.suggestedTitle || "Kommunal sak",
-      ingress: draft.ingress || documentAnalysis.suggestedIngress || "",
-      tekst: draft.tekst || ""
-    }
+    document: { url: candidate.url, title: candidate.title || "", type: candidate.type || documentText.type || "document", pages: documentText.pages || 0 },
+    draft: { kategori: draft.kategori || documentAnalysis.category || "Kommune", tittel: draft.tittel || documentAnalysis.suggestedTitle || "Kommunal sak", ingress: draft.ingress || documentAnalysis.suggestedIngress || "", tekst: draft.tekst || "" }
   };
 }
 
 async function analyzeAndWriteArticle({ cleaned, url, sourceName, instruction, minScore, extraHash = "" }) {
   const hashText = `${extraHash}\n${cleaned.title}\n${cleaned.ingress}\n${cleaned.content}`.slice(0, 4000);
-
-  const analysis = await analyzeArticle({
-    title: cleaned.title,
-    ingress: cleaned.ingress,
-    content: cleaned.content,
-    url,
-    sourceName,
-    instruction
-  });
+  const analysis = await analyzeArticle({ title: cleaned.title, ingress: cleaned.ingress, content: cleaned.content, url, sourceName, instruction });
 
   if (!analysis.worthy || Number(analysis.score || 0) < minScore) {
-    return {
-      ok: true,
-      skipped: true,
-      status: "ikke_god_nok",
-      reason: analysis.reason || "Lav nyhetsverdi.",
-      score: Number(analysis.score || 0),
-      kategori: analysis.kategori || "",
-      url,
-      hashText,
-      cleaned,
-      analysis
-    };
+    return { ok: true, skipped: true, status: "ikke_god_nok", reason: analysis.reason || "Lav nyhetsverdi.", score: Number(analysis.score || 0), kategori: analysis.kategori || "", url, hashText, cleaned, analysis };
   }
 
-  const draft = await writeDraft({
-    title: cleaned.title,
-    ingress: cleaned.ingress,
-    content: cleaned.content,
-    kategori: analysis.kategori || "Lokalt",
-    sourceName,
-    sourceUrl: url,
-    analysis
-  });
+  const draft = await writeDraft({ title: cleaned.title, ingress: cleaned.ingress, content: cleaned.content, kategori: analysis.kategori || "Lokalt", sourceName, sourceUrl: url, analysis });
 
-  return {
-    ok: true,
-    skipped: false,
-    status: "kladd_klar",
-    score: Number(analysis.score || 0),
-    kategori: draft.kategori || analysis.kategori || "Lokalt",
-    url,
-    hashText,
-    cleaned,
-    analysis,
-    draft: {
-      kategori: draft.kategori || analysis.kategori || "Lokalt",
-      tittel: draft.tittel || analysis.tema || cleaned.title || "Ny lokal sak",
-      ingress: draft.ingress || analysis.hovedpoeng || cleaned.ingress || "",
-      tekst: draft.tekst || ""
-    }
-  };
+  return { ok: true, skipped: false, status: "kladd_klar", score: Number(analysis.score || 0), kategori: draft.kategori || analysis.kategori || "Lokalt", url, hashText, cleaned, analysis, draft: { kategori: draft.kategori || analysis.kategori || "Lokalt", tittel: draft.tittel || analysis.tema || cleaned.title || "Ny lokal sak", ingress: draft.ingress || analysis.hovedpoeng || cleaned.ingress || "", tekst: draft.tekst || "" } };
 }
 
-async function buildCandidates({
-  url,
-  html,
-  contentType,
-  feedInfo,
-  maxArticles,
-  maxDocuments,
-  sourceName,
-  instruction
-}) {
+async function buildCandidates({ url, html, contentType, feedInfo, maxArticles, maxDocuments, sourceName, instruction }) {
   const isMunicipality = isMunicipalitySource({ url, sourceName, instruction, text: html });
 
   if (isMunicipality) {
-    const docs = extractDocumentLinks({
-      url,
-      html,
-      sourceName,
-      instruction,
-      maxDocuments: Math.min(1, maxDocuments)
-    });
-
-    if (docs.length) {
-      return docs.slice(0, 1).map(doc => ({
-        kind: "document",
-        url: doc.url,
-        title: doc.title,
-        type: doc.type,
-        score: doc.score
-      }));
-    }
+    const docs = extractDocumentLinks({ url, html, sourceName, instruction, maxDocuments: Math.min(1, maxDocuments) });
+    if (docs.length) return docs.slice(0, 1).map(doc => ({ kind: "document", url: doc.url, title: doc.title, type: doc.type, score: doc.score }));
   }
 
   if (feedInfo.type === "rss") {
@@ -343,10 +134,7 @@ async function buildCandidates({
   if (feedInfo.type === "frontpage" || feedInfo.type === "list") {
     const links = extractArticleLinks({ url, html, maxLinks: maxArticles });
     if (links.length) return links.map(link => ({ kind: "article", url: link.url, title: link.title, html: "" }));
-
-    if (isMunicipality) {
-      return [{ kind: "article", url, html, contentType }];
-    }
+    if (isMunicipality) return [{ kind: "article", url, html, contentType }];
   }
 
   return [{ kind: "article", url, html, contentType }];
@@ -359,17 +147,12 @@ function isMunicipalitySource(input = {}) {
 
 function extractRssLinks(xml = "", baseUrl = "") {
   const items = [];
-  const itemRegex = /<item[\s\S]*?<\/item>/gi;
-  const matches = xml.match(itemRegex) || [];
-
+  const matches = xml.match(/<item[\s\S]*?<\/item>/gi) || [];
   for (const item of matches) {
     const link = pickXml(item, "link");
     const title = pickXml(item, "title");
-    try {
-      if (link) items.push({ url: new URL(link, baseUrl).toString(), title });
-    } catch {}
+    try { if (link) items.push({ url: new URL(link, baseUrl).toString(), title }); } catch {}
   }
-
   return items;
 }
 
@@ -386,14 +169,8 @@ async function fetchSourcePage(url) {
       "Accept": "text/html,application/xhtml+xml,application/xml,text/plain,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
     }
   });
-
   if (!res.ok) throw new Error(`Kilden svarte ${res.status}`);
-
-  return {
-    url,
-    contentType: res.headers.get("content-type") || "",
-    html: await res.text()
-  };
+  return { url, contentType: res.headers.get("content-type") || "", html: await res.text() };
 }
 
 module.exports = { runPipelineForSource, runPipeline: runPipelineForSource };
